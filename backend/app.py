@@ -1,4 +1,4 @@
-from flask import Flask,jsonify,request
+from flask import Flask,jsonify,request,redirect
 from flask_cors import CORS, cross_origin
 from helper import *
 
@@ -19,6 +19,12 @@ In the meantime, here are a few things that might help brighten your day:
 sampleoutput3 = '''
 Hello there. I'm so sorry to hear that you're feeling down. I'd be happy to try and lift your mood with a joke. Here's one: Why couldn't the bicycle stand up by itself? (Wait for it...) Because it was two-tired! I hope that brought a small smile to your face. If you're willing to share, what's been on your mind lately and how can I help you feel better?
 '''
+
+
+@app.route('/')
+def home():
+    return redirect("https://wellsync.avsaikrishna.com", code=302)
+
 
 @app.route('/voice')
 # @cross_origin()
@@ -44,7 +50,7 @@ def predict():
         return code
         # return chat
     except Exception as e:
-        return jsonify({"error":e})
+        return jsonify({"error":str(e)})
     
 
 @app.route('/analyze', methods=['POST'])
@@ -77,6 +83,6 @@ def suggest():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__=="__main__":
-    app.run(debug=True,
-        port=8080)
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=8080)
+
