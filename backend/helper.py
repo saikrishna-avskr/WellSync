@@ -12,8 +12,10 @@ from langchain_community.document_loaders import TextLoader
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
-import json
 from pathlib import Path
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 load_dotenv()
@@ -146,6 +148,116 @@ def is_content_suitable(title, description):
     combined = (title or "") + " " + (description or "")
     return not any(word in combined.lower() for word in blacklist)
 
+def create_robust_session():
+    """Create a requests session with retry logic and SSL configuration"""
+    session = requests.Session()
+    
+    # Configure retry strategy
+    retry_strategy = Retry(
+        total=3,  # Total number of retries
+        status_forcelist=[429, 500, 502, 503, 504],  # HTTP status codes to retry on
+        backoff_factor=1,  # Wait time between retries
+        raise_on_status=False
+    )
+    
+    # Mount adapter with retry strategy
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    
+    # Set timeout and headers
+    session.timeout = 30
+    session.headers.update({
+        'User-Agent': 'WellSync/1.0',
+        'Accept': 'application/json',
+        'Connection': 'keep-alive'
+    })
+    
+    return session
+
+def make_tmdb_request(url, max_retries=5, initial_delay=1):
+    """
+    Enhanced API request function specifically for TMDB with better SSL handling
+    and exponential backoff for rate limiting
+    """
+    session = create_robust_session()
+    
+    for attempt in range(max_retries):
+        try:
+            # Add a small delay between requests to avoid rate limiting
+            if attempt > 0:
+                delay = initial_delay * (2 ** (attempt - 1))  # Exponential backoff
+                print(f"Waiting {delay} seconds before retry...")
+                time.sleep(delay)
+            
+            print(f"Making TMDB request (attempt {attempt + 1}/{max_retries})")
+            
+            # Make the request with explicit SSL verification disabled as fallback
+            try:
+                response = session.get(url, timeout=30, verify=True)
+            except requests.exceptions.SSLError:
+                print("SSL verification failed, trying without verification...")
+                response = session.get(url, timeout=30, verify=False)
+                
+            response.raise_for_status()
+            
+            # Check for rate limiting
+            if response.status_code == 429:
+                retry_after = int(response.headers.get('Retry-After', 5))
+                print(f"Rate limited. Waiting {retry_after} seconds...")
+                time.sleep(retry_after)
+                continue
+                
+            return response.json()
+            
+        except requests.exceptions.SSLError as e:
+            print(f"SSL Error on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                continue
+            else:
+                print(f"Failed after {max_retries} attempts due to SSL error")
+                return None
+                
+        except requests.exceptions.Timeout as e:
+            print(f"Timeout on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                continue
+            else:
+                print(f"Failed after {max_retries} attempts due to timeout")
+                return None
+                
+        except requests.exceptions.ConnectionError as e:
+            print(f"Connection error on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                continue
+            else:
+                print(f"Failed after {max_retries} attempts due to connection error")
+                return None
+                
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:  # Rate limiting
+                retry_after = int(e.response.headers.get('Retry-After', 5))
+                print(f"Rate limited (HTTP 429). Waiting {retry_after} seconds...")
+                time.sleep(retry_after)
+                continue
+            else:
+                print(f"HTTP error on attempt {attempt + 1}: {str(e)}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Request error on attempt {attempt + 1}: {str(e)}")
+            if attempt < max_retries - 1:
+                continue
+            else:
+                print(f"Failed after {max_retries} attempts due to request error")
+                return None
+                
+        except Exception as e:
+            print(f"Unexpected error on attempt {attempt + 1}: {str(e)}")
+            return None
+    
+    return None
+
 def generate_suggestions(mood):
     genre_ids = emotion_to_genre.get(mood, [])
     movies_by_genre = {}
@@ -157,15 +269,18 @@ def generate_suggestions(mood):
             f"&with_genres={genre_id}&include_adult=false"
             f"&certification_country=US&certification.lte=PG-13"
         )
-        print(url)
+        print(f"Fetching movies for genre: {genre_name} (ID: {genre_id})")
 
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.RequestException as e:
-            print(str(e))
-            return {"error_message": str(e)}
+        # Use the robust API request function
+        data = make_tmdb_request(url, max_retries=3, initial_delay=2)
+        
+        if data is None:
+            print(f"Failed to fetch movies for genre {genre_name}, skipping...")
+            continue
+            
+        if "results" not in data:
+            print(f"No results found for genre {genre_name}")
+            continue
 
         movies = [
             {
@@ -181,6 +296,9 @@ def generate_suggestions(mood):
 
         if movies:
             movies_by_genre[genre_name] = movies
-            print('got movies')
-        print('Exit gen_sug')
+            print(f'Successfully fetched {len(movies)} movies for genre: {genre_name}')
+        else:
+            print(f'No suitable movies found for genre: {genre_name}')
+    
+    print(f'Total genres with movies: {len(movies_by_genre)}')
     return movies_by_genre
