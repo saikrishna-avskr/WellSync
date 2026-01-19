@@ -3,3 +3,4 @@
 .env
 sample.py
 WellSync.zip
+/logs/*
