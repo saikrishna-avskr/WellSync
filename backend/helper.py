@@ -10,52 +10,512 @@ from langchain_community.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from langchain_community.document_loaders import TextLoader
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_core.retrievers import BaseRetriever
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from pathlib import Path
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import google.generativeai as genai
+import uuid
+from pinecone import Pinecone, ServerlessSpec
+from datetime import datetime
 
 
+BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
+genai.configure(api_key=os.getenv("Google_API_Key"))
+
+# Pinecone configuration (optional). If not provided, code will fall back to file-based behavior.
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX = os.getenv("PINECONE_INDEX_NAME", "wellsync-conversations")
+
+# Global Pinecone client and index
+_pinecone_client = None
+_pinecone_index = None
+
+def get_pinecone_client():
+    """Get or create Pinecone client (singleton pattern)."""
+    global _pinecone_client
+    if _pinecone_client is None and PINECONE_API_KEY:
+        try:
+            _pinecone_client = Pinecone(api_key=PINECONE_API_KEY)
+        except Exception as e:
+            print(f"Failed to initialize Pinecone client: {e}")
+            return None
+    return _pinecone_client
+
+def get_pinecone_index():
+    """Get or create Pinecone index for conversations."""
+    global _pinecone_index
+    if _pinecone_index is not None:
+        return _pinecone_index
+    
+    client = get_pinecone_client()
+    if client is None:
+        return None
+    
+    try:
+        # Check if index exists, create if not
+        existing_indexes = [idx.name for idx in client.list_indexes()]
+        
+        if PINECONE_INDEX not in existing_indexes:
+            # Create index with serverless spec (adjust region as needed)
+            client.create_index(
+                name=PINECONE_INDEX,
+                dimension=384,  # all-MiniLM-L6-v2 dimension
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+            # Wait for index to be ready
+            time.sleep(5)
+        
+        _pinecone_index = client.Index(PINECONE_INDEX)
+        return _pinecone_index
+    except Exception as e:
+        print(f"Failed to get/create Pinecone index: {e}")
+        return None
+
+def init_pinecone_if_needed():
+    """Initialize Pinecone client if API key provided. Safe to call multiple times."""
+    return get_pinecone_index()
+
+# Empathetic system prompt for the mental health chatbot
+EMPATHETIC_SYSTEM_TEMPLATE = """You are WellSync, a warm, caring, and empathetic mental health companion. Your role is to provide emotional support and be a compassionate listener.
+
+IMPORTANT RESTRICTIONS - YOU MUST FOLLOW THESE:
+- NEVER provide medical diagnoses or suggest you know what condition someone has
+- NEVER recommend, suggest, or mention any medications, drugs, or pharmaceutical treatments
+- NEVER act as a doctor, psychiatrist, or medical professional
+- If someone asks for medical advice, kindly explain you cannot provide that and encourage them to speak with a healthcare professional
+
+WHAT YOU CAN DO:
+- Provide general wellness tips, self-care suggestions, and coping strategies
+- Offer practical advice on stress management, sleep hygiene, relaxation techniques, and healthy habits
+- Share tips on mindfulness, breathing exercises, journaling, and emotional regulation
+- Give suggestions for daily routines, productivity, hobbies, and lifestyle improvements
+- Help with goal-setting, motivation, and personal growth
+- Provide information and tips on any non-medical topics the user asks about
+- You ARE encouraged to give helpful suggestions, tips, and solutions - just not medical ones
+
+Guidelines for your responses:
+- Always respond with warmth, empathy, and genuine care
+- Use a gentle, supportive, and non-judgmental tone
+- NEVER assume the user's emotional state - always ask how they're feeling
+- Do NOT assume the user is happy, smiling, or in a good mood just from a simple greeting like "hi"
+- Acknowledge and validate the user's feelings ONLY after they share them
+- Ask open-ended questions to understand how they're truly feeling
+- Use phrases like "I hear you", "That sounds really difficult", "It's completely understandable to feel that way" - but only after they share their feelings
+- Offer encouragement and hope without being dismissive of their struggles
+- If they share something difficult, express that you're there for them
+- Keep responses conversational and human-like, not clinical or robotic
+- Use the context provided to give relevant, personalized responses
+- You're a supportive friend who listens - not a therapist or doctor
+
+When greeting users (for simple greetings like "hi", "hello", "hey"):
+- Respond warmly but neutrally: "Hello! I'm here for you. How are you feeling today?" or "Hi there! It's nice to meet you. What's on your mind?"
+- Do NOT say things like "I can see you're happy" or assume any emotion
+- Always invite them to share how they're actually feeling
+- Show genuine interest in their wellbeing without making assumptions
+
+Use the following context to help inform your response:
+{context}
+
+Current conversation:
+{chat_history}
+
+User: {question}
+WellSync:"""
+
+QUESTION_PROMPT_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question that captures the emotional context.
+
+Chat History:
+{chat_history}
+Follow Up Input: {question}
+Standalone question:"""
 
 def create_conversational_chain(vector_store):
+    from langchain.prompts import PromptTemplate
+    from langchain.chains.question_answering import load_qa_chain
+    from langchain.chains import LLMChain
+    
     llm = ChatGroq(
-        model_name="Llama3-8b-8192",
+        model_name="llama-3.1-8b-instant",
         groq_api_key=os.getenv("groq_api_key"),
         streaming=True,
         callbacks=[StreamingStdOutCallbackHandler()],
-        temperature=0.01,
-        top_p=1,
-    )    
+        temperature=0.7,  # Slightly higher for more natural, varied responses
+    )
+    
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    
+    # Handle both BaseRetriever instances and vector stores with as_retriever method
+    if isinstance(vector_store, BaseRetriever):
+        retriever = vector_store
+    else:
+        retriever = vector_store.as_retriever(search_kwargs={"k": 2})
+    
+    # Create custom prompts
+    condense_question_prompt = PromptTemplate.from_template(QUESTION_PROMPT_TEMPLATE)
+    qa_prompt = PromptTemplate.from_template(EMPATHETIC_SYSTEM_TEMPLATE)
+    
     chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         chain_type='stuff',
-        retriever=vector_store.as_retriever(search_kwargs={"k": 2}),
+        retriever=retriever,
         memory=memory,
+        condense_question_prompt=condense_question_prompt,
+        combine_docs_chain_kwargs={"prompt": qa_prompt},
+        verbose=False,
     )
     return chain
-BASE_DIR = Path(__file__).resolve().parent
+
+
+# ============ Pinecone Conversation Storage Functions ============
+
+# Global embeddings instance to avoid repeated loading
+_embeddings_instance = None
+
+def get_embeddings():
+    """Get HuggingFace embeddings model (singleton to avoid reload issues)."""
+    global _embeddings_instance
+    if _embeddings_instance is None:
+        _embeddings_instance = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={'device': 'cpu'},
+            encode_kwargs={'normalize_embeddings': True}
+        )
+    return _embeddings_instance
+
+def store_conversation_message(user_id: str, session_id: str, role: str, message: str, metadata: dict = None):
+    """
+    Store a single conversation message in Pinecone.
+    
+    Args:
+        user_id: Unique identifier for the user
+        session_id: Unique identifier for the chat session
+        role: 'user' or 'bot'
+        message: The message content
+        metadata: Optional additional metadata
+    
+    Returns:
+        dict with message id or None on failure
+    """
+    index = get_pinecone_index()
+    if index is None:
+        print("Pinecone not configured; skipping message storage")
+        return None
+    
+    try:
+        embeddings = get_embeddings()
+        vec = embeddings.embed_documents([message])[0]
+        
+        message_id = str(uuid.uuid4())
+        timestamp = datetime.utcnow().isoformat()
+        
+        meta = {
+            "user_id": user_id,
+            "session_id": session_id,
+            "role": role,
+            "message": message,
+            "timestamp": timestamp,
+            "type": "conversation"
+        }
+        if metadata:
+            meta.update(metadata)
+        
+        index.upsert(vectors=[(message_id, vec, meta)])
+        return {"id": message_id, "timestamp": timestamp}
+    except Exception as e:
+        print(f"Failed to store conversation message: {e}")
+        return None
+
+def get_conversation_history(user_id: str, session_id: str = None, limit: int = 20):
+    """
+    Retrieve conversation history for a user from Pinecone.
+    
+    Args:
+        user_id: Unique identifier for the user
+        session_id: Optional session ID to filter by specific session
+        limit: Maximum number of messages to return
+    
+    Returns:
+        List of conversation messages sorted by timestamp
+    """
+    index = get_pinecone_index()
+    if index is None:
+        return []
+    
+    try:
+        # Create a dummy query vector to fetch by metadata filter
+        embeddings = get_embeddings()
+        dummy_vec = embeddings.embed_documents(["conversation history"])[0]
+        
+        # Build filter
+        filter_dict = {
+            "user_id": {"$eq": user_id},
+            "type": {"$eq": "conversation"}
+        }
+        if session_id:
+            filter_dict["session_id"] = {"$eq": session_id}
+        
+        results = index.query(
+            vector=dummy_vec,
+            top_k=limit,
+            include_metadata=True,
+            filter=filter_dict
+        )
+        
+        # Extract and sort messages by timestamp
+        messages = []
+        for match in results.matches:
+            if match.metadata:
+                messages.append({
+                    "id": match.id,
+                    "role": match.metadata.get("role"),
+                    "message": match.metadata.get("message"),
+                    "timestamp": match.metadata.get("timestamp"),
+                    "session_id": match.metadata.get("session_id")
+                })
+        
+        # Sort by timestamp
+        messages.sort(key=lambda x: x.get("timestamp", ""))
+        return messages
+    except Exception as e:
+        print(f"Failed to retrieve conversation history: {e}")
+        return []
+
+def get_user_sessions(user_id: str, limit: int = 10):
+    """
+    Get list of unique session IDs for a user.
+    
+    Args:
+        user_id: Unique identifier for the user
+        limit: Maximum number of sessions to return
+    
+    Returns:
+        List of session info dicts with session_id and last_timestamp
+    """
+    index = get_pinecone_index()
+    if index is None:
+        return []
+    
+    try:
+        embeddings = get_embeddings()
+        dummy_vec = embeddings.embed_documents(["user sessions"])[0]
+        
+        results = index.query(
+            vector=dummy_vec,
+            top_k=100,  # Fetch more to find unique sessions
+            include_metadata=True,
+            filter={
+                "user_id": {"$eq": user_id},
+                "type": {"$eq": "conversation"}
+            }
+        )
+        
+        # Group by session_id and get latest timestamp
+        sessions = {}
+        for match in results.matches:
+            if match.metadata:
+                sid = match.metadata.get("session_id")
+                ts = match.metadata.get("timestamp", "")
+                if sid:
+                    if sid not in sessions or ts > sessions[sid]["last_timestamp"]:
+                        sessions[sid] = {
+                            "session_id": sid,
+                            "last_timestamp": ts
+                        }
+        
+        # Sort by last_timestamp descending and limit
+        session_list = sorted(sessions.values(), key=lambda x: x["last_timestamp"], reverse=True)
+        return session_list[:limit]
+    except Exception as e:
+        print(f"Failed to get user sessions: {e}")
+        return []
+
+def delete_session(user_id: str, session_id: str):
+    """
+    Delete all messages in a session.
+    
+    Args:
+        user_id: Unique identifier for the user
+        session_id: Session ID to delete
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    index = get_pinecone_index()
+    if index is None:
+        return False
+    
+    try:
+        # First get all message IDs for this session
+        embeddings = get_embeddings()
+        dummy_vec = embeddings.embed_documents(["delete session"])[0]
+        
+        results = index.query(
+            vector=dummy_vec,
+            top_k=1000,
+            include_metadata=True,
+            filter={
+                "user_id": {"$eq": user_id},
+                "session_id": {"$eq": session_id},
+                "type": {"$eq": "conversation"}
+            }
+        )
+        
+        # Delete all matching vectors
+        ids_to_delete = [match.id for match in results.matches]
+        if ids_to_delete:
+            index.delete(ids=ids_to_delete)
+        
+        return True
+    except Exception as e:
+        print(f"Failed to delete session: {e}")
+        return False
+
+def get_relevant_context(user_id: str, query: str, limit: int = 5):
+    """
+    Get relevant past conversation context for a query using semantic search.
+    
+    Args:
+        user_id: Unique identifier for the user
+        query: Current query to find relevant context for
+        limit: Maximum number of relevant messages to return
+    
+    Returns:
+        List of relevant past messages
+    """
+    index = get_pinecone_index()
+    if index is None:
+        return []
+    
+    try:
+        embeddings = get_embeddings()
+        query_vec = embeddings.embed_documents([query])[0]
+        
+        results = index.query(
+            vector=query_vec,
+            top_k=limit,
+            include_metadata=True,
+            filter={
+                "user_id": {"$eq": user_id},
+                "type": {"$eq": "conversation"}
+            }
+        )
+        
+        context_messages = []
+        for match in results.matches:
+            if match.metadata and match.score > 0.5:  # Only include relevant matches
+                context_messages.append({
+                    "role": match.metadata.get("role"),
+                    "message": match.metadata.get("message"),
+                    "score": match.score
+                })
+        
+        return context_messages
+    except Exception as e:
+        print(f"Failed to get relevant context: {e}")
+        return []
+
+
+# ============ Updated Bot Function with Pinecone Conversation Storage ============
+
+def bot_with_history(user_input: str, user_id: str, session_id: str):
+    """
+    Process user input with conversation history from Pinecone.
+    
+    Args:
+        user_input: The user's message
+        user_id: Unique identifier for the user
+        session_id: Unique identifier for the chat session
+    
+    Returns:
+        dict with 'answer' key containing the bot's response
+    """
+    # Store user message
+    store_conversation_message(user_id, session_id, "user", user_input)
+    
+    # Get relevant past context
+    context = get_relevant_context(user_id, user_input, limit=5)
+    
+    # Get recent conversation history for this session
+    recent_history = get_conversation_history(user_id, session_id, limit=10)
+    
+    # Build context string from past conversations
+    context_str = ""
+    if context:
+        context_str = "\n\nRelevant past conversations:\n"
+        for msg in context:
+            context_str += f"- {msg['role']}: {msg['message']}\n"
+    
+    # Build recent history string
+    history_str = ""
+    if recent_history:
+        history_str = "\n\nRecent conversation:\n"
+        for msg in recent_history[-6:]:  # Last 6 messages
+            history_str += f"- {msg['role']}: {msg['message']}\n"
+    
+    # Enhanced prompt with context
+    enhanced_input = user_input
+    if context_str or history_str:
+        enhanced_input = f"{context_str}{history_str}\n\nCurrent message: {user_input}"
+    
+    # Get response using the existing bot function
+    result = bot(enhanced_input)
+    
+    # Store bot response
+    bot_answer = result.get('answer', '')
+    store_conversation_message(user_id, session_id, "bot", bot_answer)
+    
+    return result
+
 def bot(user_input):
+    # Always use the local file-based FAISS for knowledge retrieval
+    # Pinecone is used separately for conversation history storage
+    embeddings = get_embeddings()
+
+    # Load knowledge base from local file and use FAISS
     loader = TextLoader(os.path.join(BASE_DIR, "book", "output.txt"))
     text = loader.load()
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=200)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     text_chunks = text_splitter.split_documents(text)
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2", 
-        model_kwargs={'device': 'cpu'}
-    )
     vector_store = FAISS.from_documents(text_chunks, embedding=embeddings)
     chain = create_conversational_chain(vector_store)
     result = chain.invoke({"question": user_input})
     return result
 
+
+def upsert_chat_to_pinecone(text, metadata=None):
+    """Upsert a chat message into Pinecone with generated embedding and metadata.
+
+    Returns the upsert response or None on failure.
+    """
+    pine_index = init_pinecone_if_needed()
+    if pine_index is None:
+        print("Pinecone not configured; skipping upsert")
+        return None
+
+    try:
+        embeddings = get_embeddings()
+        vec = embeddings.embed_documents([text])[0]
+        uid = str(uuid.uuid4())
+        meta = metadata.copy() if metadata else {}
+        meta.update({"text": text})
+        # Upsert single vector
+        pine_index.upsert(vectors=[(uid, vec, meta)])
+        return {"id": uid}
+    except Exception as e:
+        print(f"Failed to upsert to Pinecone: {e}")
+        return None
+
 def TextToAudio(st):
     text_to_speech = pyttsx3.init()    
     text_to_speech.say(st)
     text_to_speech.runAndWait()
+    
 def AudioToText():
     r = sr.Recognizer()
     with sr.Microphone() as source:
@@ -70,11 +530,6 @@ def AudioToText():
     except sr.RequestError as e:
         print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
-
-import google.generativeai as genai
-
-
-genai.configure(api_key=os.getenv("Google_API_Key"))
 
 generation_config = {
     "temperature": 0.4,

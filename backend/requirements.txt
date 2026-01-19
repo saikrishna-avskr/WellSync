@@ -1,14 +1,9 @@
-
-
 # Environment variables
 python-dotenv
 
 # HTTP requests
 requests
 urllib3
-
-# Retry mechanism
-#requests[socks]  # to support Retry and adapters explicitly if needed
 
 # Flask API
 flask
@@ -19,17 +14,19 @@ SpeechRecognition
 pyttsx3
 
 # LangChain and related integrations
-langchain
-langchain-community
-langchain-groq
-langchain-huggingface
+langchain>=0.3.26,<0.4.0
+langchain-community>=0.3.27,<0.4.0
+langchain-core>=0.3.66,<1.0.0
+langchain-groq>=0.3.6,<0.4.0
+langchain-huggingface>=0.3.0,<0.4.0
 google-generativeai
+
 # Vector store
-faiss-cpu  # or faiss-gpu if using GPU
+faiss-cpu
 
 # HuggingFace Transformers/Embeddings
 transformers
-sentence-transformers  # if your embedding model uses this
+sentence-transformers
 
-# Optional: If using local documents with loaders
-unstructured  # sometimes needed for loaders like TextLoader
+# Pinecone client for vector DB
+pinecone>=5.0.0

@@ -1,6 +1,7 @@
 import { useUser } from "@clerk/clerk-react";
 import React from "react";
 import { useLocation } from "react-router-dom";
+import Dictaphone from "../Dictaphone";
 
 const BlogsDescription = () => {
   const { user } = useUser();
@@ -31,6 +32,7 @@ const BlogsDescription = () => {
           </div>
         </div>
       </div>
+      <Dictaphone/>
     </div>
   );
 };
