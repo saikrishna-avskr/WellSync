@@ -4,7 +4,7 @@ from helper import *
 import time
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://13.71.95.26:5173", "https://wellsync.avsaikrishna.com"])
 
 @app.route('/')
 def home():

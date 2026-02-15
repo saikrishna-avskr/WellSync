@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { UserButton } from '@clerk/clerk-react';
+import { UserButton } from "@clerk/clerk-react";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -13,7 +13,7 @@ const Navbar = () => {
             href="/home"
             className="text-xl font-semibold tracking-widest text-white uppercase"
           >
-            WellSync
+            SERENIFIT
           </a>
           <button
             className="md:hidden focus:outline-none"
@@ -40,8 +40,11 @@ const Navbar = () => {
         <nav
           className={`${menuOpen ? "flex flex-col" : "hidden"} md:flex md:flex-row items-center gap-6`}
         >
-          <a href="/ar-meditation" className="hover:text-gray-300 transition">
-            Virtual Mediation
+          <a
+            href="https://framevr.io/zenithai"
+            className="hover:text-gray-300 transition"
+          >
+            Virtual Meditation
           </a>
           <a href="/articles" className="hover:text-gray-300 transition">
             Articles

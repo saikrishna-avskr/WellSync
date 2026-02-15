@@ -2,7 +2,7 @@
 
 deactivate
 # Activate virtualenv
-source backend/venv/bin/activate
+source .venv/bin/activate
 
 # Start Flask backend
 echo "Starting Flask backend..."

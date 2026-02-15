@@ -98,7 +98,7 @@ const Chat = () => {
               type: msg.role === "user" ? "user" : "bot",
               message: msg.message,
               timestamp: msg.timestamp,
-            }))
+            })),
           );
         } else {
           setChatHistory([
@@ -143,7 +143,7 @@ const Chat = () => {
       });
       if (response.ok) {
         setSessions((prev) =>
-          prev.filter((s) => s.session_id !== targetSessionId)
+          prev.filter((s) => s.session_id !== targetSessionId),
         );
         if (targetSessionId === sessionId) {
           startNewSession();
