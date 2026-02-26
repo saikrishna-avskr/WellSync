@@ -2,6 +2,7 @@ import os
 import requests
 import speech_recognition as sr
 import pyttsx3
+import jwt
 from langchain.chains import ConversationalRetrievalChain
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -21,6 +22,7 @@ import google.generativeai as genai
 import uuid
 from pinecone import Pinecone, ServerlessSpec
 from datetime import datetime
+import threading
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -176,24 +178,34 @@ def create_conversational_chain(vector_store):
 
 # Global embeddings instance to avoid repeated loading
 _embeddings_instance = None
+_embeddings_init_lock = threading.Lock()
+_embeddings_call_lock = threading.Lock()
 
 def get_embeddings():
     """Get HuggingFace embeddings model (singleton to avoid reload issues)."""
     global _embeddings_instance
     if _embeddings_instance is None:
-        _embeddings_instance = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
-        )
+        with _embeddings_init_lock:
+            if _embeddings_instance is None:
+                _embeddings_instance = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2",
+                    model_kwargs={'device': 'cpu'},
+                    encode_kwargs={'normalize_embeddings': True}
+                )
     return _embeddings_instance
+
+def embed_documents_safe(texts):
+    """Thread-safe embedding wrapper to avoid concurrent model access issues."""
+    embeddings = get_embeddings()
+    with _embeddings_call_lock:
+        return embeddings.embed_documents(texts)
 
 def store_conversation_message(user_id: str, session_id: str, role: str, message: str, metadata: dict = None):
     """
     Store a single conversation message in Pinecone.
     
     Args:
-        user_id: Unique identifier for the user
+        user_id: Unique identifier for the user (email)
         session_id: Unique identifier for the chat session
         role: 'user' or 'bot'
         message: The message content
@@ -208,11 +220,15 @@ def store_conversation_message(user_id: str, session_id: str, role: str, message
         return None
     
     try:
-        embeddings = get_embeddings()
-        vec = embeddings.embed_documents([message])[0]
+        vec = embed_documents_safe([message])[0]
         
         message_id = str(uuid.uuid4())
         timestamp = datetime.utcnow().isoformat()
+        
+        # Generate a title from the first user message (truncate to 50 chars)
+        title = ""
+        if role == "user":
+            title = message[:50] + "..." if len(message) > 50 else message
         
         meta = {
             "user_id": user_id,
@@ -220,7 +236,8 @@ def store_conversation_message(user_id: str, session_id: str, role: str, message
             "role": role,
             "message": message,
             "timestamp": timestamp,
-            "type": "conversation"
+            "type": "conversation",
+            "title": title  # Store title for session display
         }
         if metadata:
             meta.update(metadata)
@@ -249,8 +266,7 @@ def get_conversation_history(user_id: str, session_id: str = None, limit: int = 
     
     try:
         # Create a dummy query vector to fetch by metadata filter
-        embeddings = get_embeddings()
-        dummy_vec = embeddings.embed_documents(["conversation history"])[0]
+        dummy_vec = embed_documents_safe(["conversation history"])[0]
         
         # Build filter
         filter_dict = {
@@ -291,20 +307,19 @@ def get_user_sessions(user_id: str, limit: int = 10):
     Get list of unique session IDs for a user.
     
     Args:
-        user_id: Unique identifier for the user
+        user_id: Unique identifier for the user (email)
         limit: Maximum number of sessions to return
     
     Returns:
-        List of session info dicts with session_id and last_timestamp
+        List of session info dicts with session_id, title, and last_timestamp
     """
     index = get_pinecone_index()
     if index is None:
         return []
     
     try:
-        embeddings = get_embeddings()
-        dummy_vec = embeddings.embed_documents(["user sessions"])[0]
-        
+        dummy_vec = embed_documents_safe(["user sessions"])[0]
+
         results = index.query(
             vector=dummy_vec,
             top_k=100,  # Fetch more to find unique sessions
@@ -314,19 +329,44 @@ def get_user_sessions(user_id: str, limit: int = 10):
                 "type": {"$eq": "conversation"}
             }
         )
+
         
-        # Group by session_id and get latest timestamp
+        # Group by session_id and get latest timestamp + first user message as title
         sessions = {}
         for match in results.matches:
             if match.metadata:
                 sid = match.metadata.get("session_id")
                 ts = match.metadata.get("timestamp", "")
+                role = match.metadata.get("role", "")
+                title = match.metadata.get("title", "")
+                
                 if sid:
-                    if sid not in sessions or ts > sessions[sid]["last_timestamp"]:
+                    if sid not in sessions:
                         sessions[sid] = {
                             "session_id": sid,
-                            "last_timestamp": ts
+                            "last_timestamp": ts,
+                            "title": "",
+                            "first_timestamp": ts
                         }
+                    
+                    # Update last_timestamp if newer
+                    if ts > sessions[sid]["last_timestamp"]:
+                        sessions[sid]["last_timestamp"] = ts
+                    
+                    # Track earliest timestamp
+                    if ts < sessions[sid]["first_timestamp"]:
+                        sessions[sid]["first_timestamp"] = ts
+                    
+                    # Get title from first user message
+                    if role == "user" and title and (not sessions[sid]["title"] or ts < sessions[sid]["first_timestamp"]):
+                        sessions[sid]["title"] = title
+        
+        # Set default title if none found
+        for sid in sessions:
+            if not sessions[sid]["title"]:
+                sessions[sid]["title"] = "New conversation"
+            # Remove the helper field
+            del sessions[sid]["first_timestamp"]
         
         # Sort by last_timestamp descending and limit
         session_list = sorted(sessions.values(), key=lambda x: x["last_timestamp"], reverse=True)
@@ -352,8 +392,7 @@ def delete_session(user_id: str, session_id: str):
     
     try:
         # First get all message IDs for this session
-        embeddings = get_embeddings()
-        dummy_vec = embeddings.embed_documents(["delete session"])[0]
+        dummy_vec = embed_documents_safe(["delete session"])[0]
         
         results = index.query(
             vector=dummy_vec,
@@ -393,8 +432,7 @@ def get_relevant_context(user_id: str, query: str, limit: int = 5):
         return []
     
     try:
-        embeddings = get_embeddings()
-        query_vec = embeddings.embed_documents([query])[0]
+        query_vec = embed_documents_safe([query])[0]
         
         results = index.query(
             vector=query_vec,
@@ -499,8 +537,7 @@ def upsert_chat_to_pinecone(text, metadata=None):
         return None
 
     try:
-        embeddings = get_embeddings()
-        vec = embeddings.embed_documents([text])[0]
+        vec = embed_documents_safe([text])[0]
         uid = str(uuid.uuid4())
         meta = metadata.copy() if metadata else {}
         meta.update({"text": text})
@@ -603,6 +640,7 @@ def is_content_suitable(title, description):
     combined = (title or "") + " " + (description or "")
     return not any(word in combined.lower() for word in blacklist)
 
+
 def create_robust_session():
     """Create a requests session with retry logic and SSL configuration"""
     session = requests.Session()
@@ -629,6 +667,7 @@ def create_robust_session():
     })
     
     return session
+
 
 def make_tmdb_request(url, max_retries=5, initial_delay=1):
     """
@@ -713,7 +752,9 @@ def make_tmdb_request(url, max_retries=5, initial_delay=1):
     
     return None
 
+
 def generate_suggestions(mood):
+
     genre_ids = emotion_to_genre.get(mood, [])
     movies_by_genre = {}
 
@@ -757,3 +798,144 @@ def generate_suggestions(mood):
     
     print(f'Total genres with movies: {len(movies_by_genre)}')
     return movies_by_genre
+
+
+def get_email_from_clerk_request(request):
+    """
+    Extract user email from Clerk session token in the request.
+    
+    Args:
+        request: Flask/FastAPI request object containing the Authorization header
+        
+    Returns:
+        str: User's email address or None if not found
+    """
+    try:
+        # Get the session token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        
+        if not auth_header:
+            print("No Authorization header found")
+            return None
+        
+        # Remove 'Bearer ' prefix if present
+        token = auth_header.replace('Bearer ', '').strip()
+        
+        if not token:
+            print("No token found in Authorization header")
+            return None
+        
+        # Decode the JWT token without verification to extract claims
+        # Note: In production, you should verify the token with Clerk's public key
+        # For now, we decode without verification to get the session data
+        try:
+            # Decode without verification (for development)
+            # The token from Clerk contains user info in the payload
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            
+            # Clerk stores email in different possible locations
+            email = None
+            
+            # Check common Clerk JWT claim locations
+            if 'email' in decoded:
+                email = decoded['email']
+            elif 'email_addresses' in decoded and decoded['email_addresses']:
+                email = decoded['email_addresses'][0].get('email_address')
+            elif 'primary_email_address' in decoded:
+                email = decoded['primary_email_address']
+            elif 'user' in decoded and isinstance(decoded['user'], dict):
+                email = decoded['user'].get('email') or decoded['user'].get('primary_email_address')
+            
+            # If email not in token, try to fetch from Clerk API using user_id/sub
+            if not email:
+                user_id = decoded.get('sub') or decoded.get('user_id')
+                if user_id:
+                    email = get_email_from_clerk_api(user_id)
+            
+            return email
+            
+        except Exception as decode_err:
+            print(f"Failed to decode JWT token: {decode_err}")
+            return None
+            
+    except Exception as e:
+        print(f"Error extracting email from request: {e}")
+        return None
+
+
+def get_email_from_clerk_api(user_id: str):
+    """
+    Fetch user email from Clerk API using user ID.
+    
+    Args:
+        user_id: Clerk user ID (usually starts with 'user_')
+        
+    Returns:
+        str: User's email address or None if not found
+    """
+    clerk_secret_key = os.getenv("CLERK_SECRET_KEY")
+    
+    if not clerk_secret_key:
+        print("CLERK_SECRET_KEY not configured")
+        return None
+    
+    try:
+        url = f"https://api.clerk.com/v1/users/{user_id}"
+        headers = {
+            "Authorization": f"Bearer {clerk_secret_key}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            user_data = response.json()
+            
+            # Get primary email from email_addresses array
+            email_addresses = user_data.get('email_addresses', [])
+            primary_email_id = user_data.get('primary_email_address_id')
+            
+            for email_obj in email_addresses:
+                if email_obj.get('id') == primary_email_id:
+                    return email_obj.get('email_address')
+            
+            # Fallback to first email if no primary found
+            if email_addresses:
+                return email_addresses[0].get('email_address')
+                
+        else:
+            print(f"Clerk API returned status {response.status_code}: {response.text}")
+            
+    except Exception as e:
+        print(f"Error fetching user from Clerk API: {e}")
+    
+    return None
+
+
+def get_user_id_from_clerk_request(request):
+    """
+    Extract user ID from Clerk session token in the request.
+    
+    Args:
+        request: Flask/FastAPI request object containing the Authorization header
+        
+    Returns:
+        str: User's Clerk ID or None if not found
+    """
+    try:
+        auth_header = request.headers.get('Authorization', '')
+        
+        if not auth_header:
+            return None
+        
+        token = auth_header.replace('Bearer ', '').strip()
+        
+        if not token:
+            return None
+        
+        decoded = jwt.decode(token, options={"verify_signature": False})
+        return decoded.get('sub') or decoded.get('user_id')
+        
+    except Exception as e:
+        print(f"Error extracting user ID from request: {e}")
+        return None

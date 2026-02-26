@@ -24,13 +24,19 @@ def voice():
 def predict():
     try:
         chat = request.get_json()
-        user_id = chat.get('user_id', 'anonymous')
         session_id = chat.get('session_id', str(uuid.uuid4()))
         message = chat.get('data')
         
-        # Use the new bot_with_history function that stores conversations in Pinecone
-        if user_id != 'anonymous':
-            result = bot_with_history(message, user_id, session_id)
+        # Get user email from Clerk token (primary identifier)
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = chat.get('user_id', 'anonymous')
+        
+        # Use the bot_with_history function that stores conversations in Pinecone
+        if user_email and user_email != 'anonymous':
+            result = bot_with_history(message, user_email, session_id)
         else:
             # Fallback for anonymous users - just use the regular bot
             result = bot(message)
@@ -43,7 +49,8 @@ def predict():
         
         return jsonify({
             "data": result.get('answer'),
-            "session_id": session_id
+            "session_id": session_id,
+            "user_email": user_email
         })
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -56,14 +63,20 @@ def get_history():
     """Get conversation history for a user/session."""
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
         session_id = data.get('session_id')
         limit = data.get('limit', 20)
         
-        if not user_id:
-            return jsonify({"error": "user_id is required"}), 400
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
         
-        history = get_conversation_history(user_id, session_id, limit)
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        history = get_conversation_history(user_email, session_id, limit)
         return jsonify({"history": history})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -73,13 +86,19 @@ def get_sessions():
     """Get list of sessions for a user."""
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
         limit = data.get('limit', 10)
         
-        if not user_id:
-            return jsonify({"error": "user_id is required"}), 400
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
         
-        sessions = get_user_sessions(user_id, limit)
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        sessions = get_user_sessions(user_email, limit)
         return jsonify({"sessions": sessions})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -89,13 +108,22 @@ def delete_conversation():
     """Delete a conversation session."""
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
         session_id = data.get('session_id')
         
-        if not user_id or not session_id:
-            return jsonify({"error": "user_id and session_id are required"}), 400
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
         
-        success = delete_session(user_id, session_id)
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        success = delete_session(user_email, session_id)
         return jsonify({"success": success})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -105,14 +133,23 @@ def get_context():
     """Get relevant context from past conversations for a query."""
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
         query = data.get('query')
         limit = data.get('limit', 5)
         
-        if not user_id or not query:
-            return jsonify({"error": "user_id and query are required"}), 400
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
         
-        context = get_relevant_context(user_id, query, limit)
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        if not query:
+            return jsonify({"error": "query is required"}), 400
+        
+        context = get_relevant_context(user_email, query, limit)
         return jsonify({"context": context})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

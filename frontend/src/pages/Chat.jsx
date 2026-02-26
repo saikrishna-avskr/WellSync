@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   HiOutlinePaperClip,
   HiOutlineGlobeAlt,
@@ -6,6 +6,7 @@ import {
 } from "react-icons/hi2";
 import { BiSolidMicrophone, BiSolidMicrophoneOff } from "react-icons/bi";
 import { FiPlus, FiTrash2, FiMessageSquare } from "react-icons/fi";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import Header from "../component/Chatbot/ui/Header";
 import MessageActions from "../component/Chatbot/ui/MessageActions";
 import BotMessage from "../component/Chatbot/BotMessage";
@@ -19,17 +20,9 @@ import Dictaphone from "../Dictaphone";
 // Generate unique IDs
 const generateId = () => Math.random().toString(36).substring(2, 15);
 
-// Get or create user ID from localStorage
-const getUserId = () => {
-  let userId = localStorage.getItem("wellsync_user_id");
-  if (!userId) {
-    userId = `user_${generateId()}`;
-    localStorage.setItem("wellsync_user_id", userId);
-  }
-  return userId;
-};
-
 const Chat = () => {
+  const { getToken, isSignedIn } = useAuth();
+  const { user } = useUser();
   const [isVoiceActivated, setVoiceActivated] = useState(false);
   const [isQuizModalOpen, setQuizModalOpen] = useState(false);
   const [showQuizButton, setShowQuizButton] = useState(true);
@@ -41,12 +34,30 @@ const Chat = () => {
     },
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [userId] = useState(getUserId);
   const [sessionId, setSessionId] = useState(() => `session_${generateId()}`);
   const [sessions, setSessions] = useState([]);
   const [showSidebar, setShowSidebar] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const chatEndRef = useRef(null);
+
+  // Get authorization headers with Clerk token (using custom JWT template)
+  const getAuthHeaders = useCallback(async () => {
+    const headers = { "Content-Type": "application/json" };
+    if (isSignedIn) {
+      try {
+        const token = await getToken({ template: "serenifit-backend" });
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.error("Failed to get auth token:", error);
+      }
+    }
+    return headers;
+  }, [isSignedIn, getToken]);
+
+  // Get user email for display
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -56,17 +67,20 @@ const Chat = () => {
     scrollToBottom();
   }, [chatHistory]);
 
-  // Load user sessions on mount
+  // Load user sessions on mount when signed in
   useEffect(() => {
-    loadUserSessions();
-  }, [userId]);
+    if (isSignedIn) {
+      loadUserSessions();
+    }
+  }, [isSignedIn]);
 
   const loadUserSessions = async () => {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${BACKEND_URL}/conversations/sessions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, limit: 10 }),
+        headers,
+        body: JSON.stringify({ limit: 10 }),
       });
       if (response.ok) {
         const data = await response.json();
@@ -80,11 +94,11 @@ const Chat = () => {
   const loadSessionHistory = async (targetSessionId) => {
     setIsLoadingHistory(true);
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${BACKEND_URL}/conversations/history`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
-          user_id: userId,
           session_id: targetSessionId,
           limit: 50,
         }),
@@ -136,10 +150,11 @@ const Chat = () => {
   const deleteSession = async (targetSessionId, e) => {
     e.stopPropagation();
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${BACKEND_URL}/conversations/delete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, session_id: targetSessionId }),
+        headers,
+        body: JSON.stringify({ session_id: targetSessionId }),
       });
       if (response.ok) {
         setSessions((prev) =>
@@ -160,12 +175,12 @@ const Chat = () => {
     if (type === "user") {
       setIsGenerating(true);
       try {
+        const headers = await getAuthHeaders();
         const response = await fetch(`${BACKEND_URL}/predict`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             data: message,
-            user_id: userId,
             session_id: sessionId,
           }),
         });
@@ -273,9 +288,14 @@ const Chat = () => {
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <FiMessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-sm truncate">
-                    {new Date(session.last_timestamp).toLocaleDateString()}
-                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm truncate font-medium">
+                      {session.title || "New conversation"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(session.last_timestamp).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={(e) => deleteSession(session.session_id, e)}
@@ -314,6 +334,9 @@ const Chat = () => {
           <span className="text-sm text-gray-500">
             {isLoadingHistory ? "Loading..." : "WellSync Chat"}
           </span>
+          {userEmail && (
+            <span className="ml-auto text-xs text-gray-400">{userEmail}</span>
+          )}
         </div>
 
         {/* Chat Messages */}
