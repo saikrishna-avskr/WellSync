@@ -30,3 +30,6 @@ sentence-transformers
 
 # Pinecone client for vector DB
 pinecone>=5.0.0
+
+# PDF Generation
+reportlab
