@@ -1,105 +1,172 @@
 """
-Diet Database Module - SQLite database for storing user diet preferences and meal plans
+Diet Database Module - MySQL database for storing user diet preferences and meal plans
 """
 
-import sqlite3
-import os
 import json
+import os
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
-# Database file path
+import pymysql
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent
-DB_PATH = BASE_DIR / "diet_plans.db"
+ROOT_ENV_PATH = BASE_DIR.parent / ".env"
+load_dotenv(ROOT_ENV_PATH)
+
+
+def _get_db_config():
+    """Build DB config from .env (DB_* preferred, DATABASE_URL fallback)."""
+    host = os.getenv("DB_HOST")
+    port = os.getenv("DB_PORT")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    database = os.getenv("DB_NAME")
+
+    ssl_mode = os.getenv("DB_SSL_MODE", "").upper()
+
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        parsed = urlparse(database_url)
+        query = parse_qs(parsed.query)
+
+        host = host or parsed.hostname
+        port = int(port) if port else (parsed.port or 3306)
+        user = user or parsed.username
+        password = password or parsed.password
+        database = database or (parsed.path[1:] if parsed.path else None)
+
+        if not ssl_mode:
+            ssl_mode = (query.get("ssl-mode", [""])[0] or query.get("ssl_mode", [""])[0]).upper()
+    else:
+        port = int(port) if port else 3306
+
+    if not all([host, user, password, database]):
+        raise ValueError("Missing MySQL configuration. Set DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (or DATABASE_URL) in .env")
+
+    config = {
+        "host": host,
+        "port": int(port),
+        "user": user,
+        "password": password,
+        "database": database,
+        "cursorclass": pymysql.cursors.DictCursor,
+        "charset": "utf8mb4",
+        "autocommit": False,
+    }
+
+    if ssl_mode in {"REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"}:
+        config["ssl"] = {}
+
+    return config
 
 
 def get_db_connection():
-    """Create and return a database connection."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Create and return a MySQL database connection."""
+    return pymysql.connect(**_get_db_config())
+
+
+def _ensure_database_exists():
+    """Create database if it does not exist (if user has permissions)."""
+    config = _get_db_config()
+    database_name = config.pop("database")
+
+    conn = pymysql.connect(**config)
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{database_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def init_database():
     """Initialize the database with required tables."""
+    try:
+        _ensure_database_exists()
+    except Exception as e:
+        print(f"Database creation skipped or failed: {e}")
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Create users diet preferences table
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_preferences (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT NOT NULL,
-            diet_type TEXT,
-            health_conditions TEXT,
-            allergies TEXT,
-            calorie_goal INTEGER DEFAULT 2000,
-            cuisine_preference TEXT DEFAULT 'any',
-            cooking_time TEXT DEFAULT '30',
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            diet_type VARCHAR(100),
+            health_conditions JSON,
+            allergies JSON,
+            calorie_goal INT DEFAULT 2000,
+            cuisine_preference VARCHAR(100) DEFAULT 'any',
+            cooking_time VARCHAR(20) DEFAULT '30',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_user_preferences_email (user_email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
-    
-    # Create meal plans table
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS meal_plans (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT NOT NULL,
-            plan_name TEXT,
-            diet_type TEXT,
-            health_conditions TEXT,
-            allergies TEXT,
-            calorie_goal INTEGER,
-            cuisine_preference TEXT,
-            cooking_time TEXT,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            plan_name VARCHAR(255),
+            diet_type VARCHAR(100),
+            health_conditions JSON,
+            allergies JSON,
+            calorie_goal INT,
+            cuisine_preference VARCHAR(100),
+            cooking_time VARCHAR(20),
             ingredients TEXT,
-            plan_content TEXT NOT NULL,
-            plan_type TEXT DEFAULT 'meal_plan',
-            is_favorite INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+            plan_content LONGTEXT NOT NULL,
+            plan_type VARCHAR(50) DEFAULT 'meal_plan',
+            is_favorite TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_meal_plans_user_email_created_at (user_email, created_at),
+            INDEX idx_meal_plans_plan_type (plan_type)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
-    
-    # Create daily tracking table
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS daily_tracking (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT NOT NULL,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
             tracking_date DATE NOT NULL,
-            water_glasses INTEGER DEFAULT 0,
-            calories_consumed INTEGER DEFAULT 0,
-            protein_g INTEGER DEFAULT 0,
-            carbs_g INTEGER DEFAULT 0,
-            fats_g INTEGER DEFAULT 0,
-            fiber_g INTEGER DEFAULT 0,
-            meals_logged TEXT,
+            water_glasses INT DEFAULT 0,
+            calories_consumed INT DEFAULT 0,
+            protein_g INT DEFAULT 0,
+            carbs_g INT DEFAULT 0,
+            fats_g INT DEFAULT 0,
+            fiber_g INT DEFAULT 0,
+            meals_logged JSON,
             notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_email, tracking_date)
-        )
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_daily_tracking_user_date (user_email, tracking_date),
+            INDEX idx_daily_tracking_user_date (user_email, tracking_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
-    
-    # Create recipe suggestions table
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS recipe_suggestions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_email TEXT NOT NULL,
-            recipe_name TEXT,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            recipe_name VARCHAR(255),
             ingredients TEXT,
-            calories INTEGER,
-            cooking_time TEXT,
-            tags TEXT,
-            instructions TEXT,
-            is_favorite INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+            calories INT,
+            cooking_time VARCHAR(20),
+            tags JSON,
+            instructions LONGTEXT,
+            is_favorite TINYINT(1) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_recipe_user_email_created_at (user_email, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
-    
+
     conn.commit()
     conn.close()
-    print(f"Database initialized at {DB_PATH}")
+    print(f"MySQL database initialized: {_get_db_config()['database']}")
 
 
 # ==================== User Preferences ====================
@@ -111,7 +178,7 @@ def save_user_preferences(user_email, diet_type, health_conditions, allergies,
     cursor = conn.cursor()
     
     # Check if user already has preferences
-    cursor.execute('SELECT id FROM user_preferences WHERE user_email = ?', (user_email,))
+    cursor.execute('SELECT id FROM user_preferences WHERE user_email = %s', (user_email,))
     existing = cursor.fetchone()
     
     health_conditions_json = json.dumps(health_conditions) if isinstance(health_conditions, list) else health_conditions
@@ -120,17 +187,17 @@ def save_user_preferences(user_email, diet_type, health_conditions, allergies,
     if existing:
         cursor.execute('''
             UPDATE user_preferences 
-            SET diet_type = ?, health_conditions = ?, allergies = ?, 
-                calorie_goal = ?, cuisine_preference = ?, cooking_time = ?,
+            SET diet_type = %s, health_conditions = %s, allergies = %s, 
+                calorie_goal = %s, cuisine_preference = %s, cooking_time = %s,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE user_email = ?
+            WHERE user_email = %s
         ''', (diet_type, health_conditions_json, allergies_json, 
               calorie_goal, cuisine_preference, cooking_time, user_email))
     else:
         cursor.execute('''
             INSERT INTO user_preferences 
             (user_email, diet_type, health_conditions, allergies, calorie_goal, cuisine_preference, cooking_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (user_email, diet_type, health_conditions_json, allergies_json, 
               calorie_goal, cuisine_preference, cooking_time))
     
@@ -144,7 +211,7 @@ def get_user_preferences(user_email):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT * FROM user_preferences WHERE user_email = ?', (user_email,))
+    cursor.execute('SELECT * FROM user_preferences WHERE user_email = %s', (user_email,))
     row = cursor.fetchone()
     conn.close()
     
@@ -185,7 +252,7 @@ def save_meal_plan(user_email, plan_content, diet_type=None, health_conditions=N
         INSERT INTO meal_plans 
         (user_email, plan_name, diet_type, health_conditions, allergies, 
          calorie_goal, cuisine_preference, cooking_time, ingredients, plan_content, plan_type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     ''', (user_email, plan_name, diet_type, health_conditions_json, allergies_json,
           calorie_goal, cuisine_preference, cooking_time, ingredients, plan_content, plan_type))
     
@@ -203,16 +270,16 @@ def get_meal_plans(user_email, limit=20, plan_type=None):
     if plan_type:
         cursor.execute('''
             SELECT * FROM meal_plans 
-            WHERE user_email = ? AND plan_type = ?
+            WHERE user_email = %s AND plan_type = %s
             ORDER BY created_at DESC 
-            LIMIT ?
+            LIMIT %s
         ''', (user_email, plan_type, limit))
     else:
         cursor.execute('''
             SELECT * FROM meal_plans 
-            WHERE user_email = ? 
+            WHERE user_email = %s 
             ORDER BY created_at DESC 
-            LIMIT ?
+            LIMIT %s
         ''', (user_email, limit))
     
     rows = cursor.fetchall()
@@ -243,9 +310,9 @@ def get_meal_plan_by_id(plan_id, user_email=None):
     cursor = conn.cursor()
     
     if user_email:
-        cursor.execute('SELECT * FROM meal_plans WHERE id = ? AND user_email = ?', (plan_id, user_email))
+        cursor.execute('SELECT * FROM meal_plans WHERE id = %s AND user_email = %s', (plan_id, user_email))
     else:
-        cursor.execute('SELECT * FROM meal_plans WHERE id = ?', (plan_id,))
+        cursor.execute('SELECT * FROM meal_plans WHERE id = %s', (plan_id,))
     
     row = cursor.fetchone()
     conn.close()
@@ -271,12 +338,12 @@ def toggle_favorite_plan(plan_id, user_email):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT is_favorite FROM meal_plans WHERE id = ? AND user_email = ?', (plan_id, user_email))
+    cursor.execute('SELECT is_favorite FROM meal_plans WHERE id = %s AND user_email = %s', (plan_id, user_email))
     row = cursor.fetchone()
     
     if row:
         new_status = 0 if row['is_favorite'] else 1
-        cursor.execute('UPDATE meal_plans SET is_favorite = ? WHERE id = ?', (new_status, plan_id))
+        cursor.execute('UPDATE meal_plans SET is_favorite = %s WHERE id = %s', (new_status, plan_id))
         conn.commit()
         conn.close()
         return new_status
@@ -290,7 +357,7 @@ def delete_meal_plan(plan_id, user_email):
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('DELETE FROM meal_plans WHERE id = ? AND user_email = ?', (plan_id, user_email))
+    cursor.execute('DELETE FROM meal_plans WHERE id = %s AND user_email = %s', (plan_id, user_email))
     affected = cursor.rowcount
     conn.commit()
     conn.close()
@@ -312,7 +379,7 @@ def save_daily_tracking(user_email, tracking_date, water_glasses=None, calories_
     # Check if tracking exists for this date
     cursor.execute('''
         SELECT id FROM daily_tracking 
-        WHERE user_email = ? AND tracking_date = ?
+        WHERE user_email = %s AND tracking_date = %s
     ''', (user_email, tracking_date))
     existing = cursor.fetchone()
     
@@ -322,28 +389,28 @@ def save_daily_tracking(user_email, tracking_date, water_glasses=None, calories_
         params = []
         
         if water_glasses is not None:
-            update_fields.append('water_glasses = ?')
+            update_fields.append('water_glasses = %s')
             params.append(water_glasses)
         if calories_consumed is not None:
-            update_fields.append('calories_consumed = ?')
+            update_fields.append('calories_consumed = %s')
             params.append(calories_consumed)
         if protein_g is not None:
-            update_fields.append('protein_g = ?')
+            update_fields.append('protein_g = %s')
             params.append(protein_g)
         if carbs_g is not None:
-            update_fields.append('carbs_g = ?')
+            update_fields.append('carbs_g = %s')
             params.append(carbs_g)
         if fats_g is not None:
-            update_fields.append('fats_g = ?')
+            update_fields.append('fats_g = %s')
             params.append(fats_g)
         if fiber_g is not None:
-            update_fields.append('fiber_g = ?')
+            update_fields.append('fiber_g = %s')
             params.append(fiber_g)
         if meals_logged is not None:
-            update_fields.append('meals_logged = ?')
+            update_fields.append('meals_logged = %s')
             params.append(meals_logged_json)
         if notes is not None:
-            update_fields.append('notes = ?')
+            update_fields.append('notes = %s')
             params.append(notes)
         
         if update_fields:
@@ -353,14 +420,14 @@ def save_daily_tracking(user_email, tracking_date, water_glasses=None, calories_
             cursor.execute(f'''
                 UPDATE daily_tracking 
                 SET {', '.join(update_fields)}
-                WHERE user_email = ? AND tracking_date = ?
+                WHERE user_email = %s AND tracking_date = %s
             ''', params)
     else:
         cursor.execute('''
             INSERT INTO daily_tracking 
             (user_email, tracking_date, water_glasses, calories_consumed, 
              protein_g, carbs_g, fats_g, fiber_g, meals_logged, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (user_email, tracking_date, water_glasses or 0, calories_consumed or 0,
               protein_g or 0, carbs_g or 0, fats_g or 0, fiber_g or 0,
               meals_logged_json, notes))
@@ -377,7 +444,7 @@ def get_daily_tracking(user_email, tracking_date):
     
     cursor.execute('''
         SELECT * FROM daily_tracking 
-        WHERE user_email = ? AND tracking_date = ?
+        WHERE user_email = %s AND tracking_date = %s
     ''', (user_email, tracking_date))
     
     row = cursor.fetchone()
@@ -401,9 +468,9 @@ def get_tracking_history(user_email, days=30):
     
     cursor.execute('''
         SELECT * FROM daily_tracking 
-        WHERE user_email = ? 
+        WHERE user_email = %s 
         ORDER BY tracking_date DESC 
-        LIMIT ?
+        LIMIT %s
     ''', (user_email, days))
     
     rows = cursor.fetchall()

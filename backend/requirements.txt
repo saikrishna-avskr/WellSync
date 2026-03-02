@@ -8,6 +8,7 @@ urllib3
 # Flask API
 flask
 flask-cors
+pymysql
 
 # Speech recognition and text-to-speech
 SpeechRecognition

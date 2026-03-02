@@ -4,9 +4,11 @@ Diet API Routes - Flask Blueprint for diet-related endpoints
 
 from flask import Blueprint, jsonify, request, send_file, make_response
 import os
+import re
 import google.generativeai as genai
 from datetime import datetime
 import io
+from xml.sax.saxutils import escape
 from dotenv import load_dotenv
 from diet_db import (
     save_user_preferences, get_user_preferences,
@@ -19,6 +21,8 @@ load_dotenv()
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("Google_API_Key"))
+
+_GEMINI_MODELS_CACHE = None
 
 # Create Blueprint
 diet_bp = Blueprint('diet', __name__, url_prefix='/diet')
@@ -101,6 +105,27 @@ def generate_with_ollama(prompt, model_name="llama3:latest"):
         raise e
 
 
+def get_supported_gemini_models(force_refresh=False):
+    """Return Gemini models that support generateContent."""
+    global _GEMINI_MODELS_CACHE
+
+    if _GEMINI_MODELS_CACHE is not None and not force_refresh:
+        return _GEMINI_MODELS_CACHE
+
+    supported_models = []
+    try:
+        for model in genai.list_models():
+            methods = getattr(model, "supported_generation_methods", []) or []
+            model_name = getattr(model, "name", "")
+            if "generateContent" in methods and "gemini" in model_name.lower():
+                supported_models.append(model_name)
+    except Exception as e:
+        print(f"Could not list Gemini models: {e}")
+
+    _GEMINI_MODELS_CACHE = supported_models
+    return supported_models
+
+
 def generate_with_ai(prompt):
     """Generate content using Ollama (primary) with Gemini fallback."""
     
@@ -112,13 +137,23 @@ def generate_with_ai(prompt):
     
     # Fallback to Gemini if Ollama fails
     print("Ollama failed, trying Gemini models...")
-    model_names_to_try = [
-        "gemini-2.0-flash",
-        "gemini-1.5-flash-latest", 
-        "gemini-1.5-flash",
-        "gemini-pro",
-        "gemini-1.0-pro"
+
+    available_models = get_supported_gemini_models()
+    preferred_models = [
+        "models/gemini-2.5-flash",
+        "models/gemini-2.0-flash",
+        "models/gemini-1.5-flash-latest",
+        "models/gemini-1.5-flash",
+        "models/gemini-1.5-pro-latest",
+        "models/gemini-1.5-pro"
     ]
+
+    if available_models:
+        model_names_to_try = [m for m in preferred_models if m in available_models]
+        model_names_to_try.extend([m for m in available_models if m not in model_names_to_try])
+    else:
+        # Last-resort static fallback when model listing fails
+        model_names_to_try = preferred_models
     
     last_error = None
     for model in model_names_to_try:
@@ -132,8 +167,12 @@ def generate_with_ai(prompt):
             last_error = e
             print(f"Gemini model {model} failed: {e}")
             continue
-    
-    raise last_error or Exception("All AI models failed. Please ensure Ollama is running or check your Gemini API key.")
+
+    available_msg = f" Available Gemini models: {', '.join(available_models)}" if available_models else ""
+    raise last_error or Exception(
+        "All AI models failed. Please ensure Ollama is running, internet is available, and your Gemini API key is valid."
+        + available_msg
+    )
 
 
 # Keep old function name for compatibility
@@ -196,6 +235,66 @@ def get_diet_guidelines(diet_type):
     }
     
     return guidelines.get(diet_type.lower(), guidelines["balanced"])
+
+
+def sanitize_pdf_text(value):
+    """Sanitize text for ReportLab Paragraph (WinAnsi-safe + escaped XML chars)."""
+    if value is None:
+        return ""
+
+    text = str(value)
+    # Remove characters typically unsupported by default PDF fonts (e.g., emojis)
+    text = ''.join(ch if ord(ch) <= 255 else ' ' for ch in text)
+    # Escape XML-like chars so Paragraph parser doesn't break on user/model text
+    return escape(text)
+
+
+def format_markdown_inline_for_pdf(value):
+    """Convert simple markdown inline syntax into ReportLab Paragraph tags."""
+    safe_text = sanitize_pdf_text(value)
+    safe_text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', safe_text)
+    safe_text = re.sub(r'__(.+?)__', r'<b>\1</b>', safe_text)
+    safe_text = re.sub(r'\*(.+?)\*', r'<i>\1</i>', safe_text)
+    safe_text = re.sub(r'_(.+?)_', r'<i>\1</i>', safe_text)
+    safe_text = re.sub(r'`(.+?)`', r'<font name="Courier">\1</font>', safe_text)
+    return safe_text
+
+
+def append_markdown_to_story(content, story, Paragraph, Spacer, HRFlowable, body_style, heading_styles):
+    """Render markdown-ish content into ReportLab story elements."""
+    for raw_line in content.split('\n'):
+        line = raw_line.strip()
+        if not line:
+            story.append(Spacer(1, 8))
+            continue
+
+        if re.match(r'^(?:-{3,}|\*{3,}|_{3,})$', line):
+            story.append(Spacer(1, 6))
+            story.append(HRFlowable(width="100%", thickness=0.6))
+            story.append(Spacer(1, 8))
+            continue
+
+        if line.startswith('### '):
+            story.append(Paragraph(f"<b>{format_markdown_inline_for_pdf(line[4:])}</b>", heading_styles['h3']))
+            continue
+        if line.startswith('## '):
+            story.append(Paragraph(f"<b>{format_markdown_inline_for_pdf(line[3:])}</b>", heading_styles['h2']))
+            continue
+        if line.startswith('# '):
+            story.append(Paragraph(f"<b>{format_markdown_inline_for_pdf(line[2:])}</b>", heading_styles['h1']))
+            continue
+
+        if re.match(r'^[-*]\s+', line):
+            item = re.sub(r'^[-*]\s+', '', line)
+            story.append(Paragraph(f"- {format_markdown_inline_for_pdf(item)}", body_style))
+            continue
+
+        if re.match(r'^\d+\.\s+', line):
+            item = re.sub(r'^(\d+\.)\s+', r'\1 ', line)
+            story.append(Paragraph(format_markdown_inline_for_pdf(item), body_style))
+            continue
+
+        story.append(Paragraph(format_markdown_inline_for_pdf(line), body_style))
 
 
 # ==================== Preferences Endpoints ====================
@@ -634,7 +733,7 @@ Calorie Goal: {plan.get('calorie_goal', 'N/A')} kcal
 {plan_content}
 
 {'='*60}
-Generated by WellSync - Smart Diet Planner
+Generated by SereniFit - Smart Diet Planner
 {'='*60}
 """
             
@@ -699,67 +798,52 @@ Generated by WellSync - Smart Diet Planner
                     leading=16,
                     spaceAfter=12
                 )
+
+                h1_style = ParagraphStyle(
+                    'H1', parent=body_style, fontSize=18, textColor=HexColor('#047857'), spaceBefore=25
+                )
+                h2_style = ParagraphStyle(
+                    'H2', parent=body_style, fontSize=15, textColor=HexColor('#059669'), spaceBefore=20
+                )
+                h3_style = ParagraphStyle(
+                    'H3', parent=body_style, fontSize=13, textColor=HexColor('#10b981'), spaceBefore=15
+                )
                 
                 # Build PDF content
                 story = []
                 
                 # Title
-                story.append(Paragraph("🥗 WellSync Meal Plan", title_style))
-                story.append(Paragraph(f"{plan_name}", subtitle_style))
+                story.append(Paragraph("SereniFit Meal Plan", title_style))
+                story.append(Paragraph(sanitize_pdf_text(plan_name), subtitle_style))
                 story.append(HRFlowable(width="100%", thickness=1, color=HexColor('#10b981')))
                 story.append(Spacer(1, 20))
                 
                 # Metadata
                 meta_text = f"""
-                <b>Generated:</b> {created_at}<br/>
-                <b>Diet Type:</b> {plan.get('diet_type', 'N/A')}<br/>
-                <b>Calorie Goal:</b> {plan.get('calorie_goal', 'N/A')} kcal
+                <b>Generated:</b> {sanitize_pdf_text(created_at)}<br/>
+                <b>Diet Type:</b> {sanitize_pdf_text(plan.get('diet_type', 'N/A'))}<br/>
+                <b>Calorie Goal:</b> {sanitize_pdf_text(plan.get('calorie_goal', 'N/A'))} kcal
                 """
                 story.append(Paragraph(meta_text, body_style))
                 story.append(Spacer(1, 20))
                 story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor('#cccccc')))
                 story.append(Spacer(1, 20))
                 
-                # Main content - split by lines and convert markdown-ish to paragraphs
-                content_lines = plan_content.split('\n')
-                for line in content_lines:
-                    line = line.strip()
-                    if not line:
-                        story.append(Spacer(1, 10))
-                        continue
-                    
-                    # Handle headers
-                    if line.startswith('###'):
-                        line = line.replace('###', '').strip()
-                        story.append(Paragraph(f"<b>{line}</b>", ParagraphStyle(
-                            'H3', parent=body_style, fontSize=13, textColor=HexColor('#10b981'), spaceBefore=15
-                        )))
-                    elif line.startswith('##'):
-                        line = line.replace('##', '').strip()
-                        story.append(Paragraph(f"<b>{line}</b>", ParagraphStyle(
-                            'H2', parent=body_style, fontSize=15, textColor=HexColor('#059669'), spaceBefore=20
-                        )))
-                    elif line.startswith('#'):
-                        line = line.replace('#', '').strip()
-                        story.append(Paragraph(f"<b>{line}</b>", ParagraphStyle(
-                            'H1', parent=body_style, fontSize=18, textColor=HexColor('#047857'), spaceBefore=25
-                        )))
-                    elif line.startswith('**') and line.endswith('**'):
-                        line = line[2:-2]
-                        story.append(Paragraph(f"<b>{line}</b>", body_style))
-                    elif line.startswith('- '):
-                        line = line[2:]
-                        story.append(Paragraph(f"• {line}", body_style))
-                    else:
-                        # Handle inline bold
-                        line = line.replace('**', '<b>', 1).replace('**', '</b>', 1)
-                        story.append(Paragraph(line, body_style))
+                append_markdown_to_story(
+                    plan_content,
+                    story,
+                    Paragraph,
+                    Spacer,
+                    HRFlowable,
+                    body_style,
+                    {'h1': h1_style, 'h2': h2_style, 'h3': h3_style}
+                )
                 
                 # Footer
                 story.append(Spacer(1, 30))
                 story.append(HRFlowable(width="100%", thickness=1, color=HexColor('#10b981')))
                 story.append(Paragraph(
-                    "Generated by WellSync - Your AI-Powered Diet Companion",
+                    "Generated by SereniFit - Your AI-Powered Diet Companion",
                     ParagraphStyle('Footer', parent=body_style, alignment=TA_CENTER, textColor=HexColor('#888888'))
                 ))
                 
@@ -816,7 +900,7 @@ Calorie Goal: {calorie_goal} kcal
 {content}
 
 {'='*60}
-Generated by WellSync - Smart Diet Planner
+Generated by SereniFit - Smart Diet Planner
 {'='*60}
 """
             
@@ -870,42 +954,39 @@ Generated by WellSync - Smart Diet Planner
                     leading=16,
                     spaceAfter=12
                 )
+
+                h1_style = ParagraphStyle(
+                    'H1Content', parent=body_style, fontSize=18, textColor=HexColor('#047857'), spaceBefore=22
+                )
+                h2_style = ParagraphStyle(
+                    'H2Content', parent=body_style, fontSize=15, textColor=HexColor('#059669'), spaceBefore=15
+                )
+                h3_style = ParagraphStyle(
+                    'H3Content', parent=body_style, fontSize=13, textColor=HexColor('#10b981'), spaceBefore=12
+                )
                 
                 story = []
-                story.append(Paragraph("🥗 WellSync Meal Plan", title_style))
-                story.append(Paragraph(f"{plan_name}", ParagraphStyle(
+                story.append(Paragraph("SereniFit Meal Plan", title_style))
+                story.append(Paragraph(sanitize_pdf_text(plan_name), ParagraphStyle(
                     'Sub', parent=body_style, alignment=TA_CENTER, fontSize=14, spaceAfter=20
                 )))
                 story.append(HRFlowable(width="100%", thickness=1, color=HexColor('#10b981')))
                 story.append(Spacer(1, 20))
                 
-                # Content
-                for line in content.split('\n'):
-                    line = line.strip()
-                    if not line:
-                        story.append(Spacer(1, 8))
-                        continue
-                    
-                    if line.startswith('###'):
-                        line = line.replace('###', '').strip()
-                        story.append(Paragraph(f"<b>{line}</b>", ParagraphStyle(
-                            'H3', parent=body_style, fontSize=13, textColor=HexColor('#10b981'), spaceBefore=12
-                        )))
-                    elif line.startswith('##'):
-                        line = line.replace('##', '').strip()
-                        story.append(Paragraph(f"<b>{line}</b>", ParagraphStyle(
-                            'H2', parent=body_style, fontSize=15, textColor=HexColor('#059669'), spaceBefore=15
-                        )))
-                    elif line.startswith('- '):
-                        story.append(Paragraph(f"• {line[2:]}", body_style))
-                    else:
-                        line = line.replace('**', '<b>', 1).replace('**', '</b>', 1)
-                        story.append(Paragraph(line, body_style))
+                append_markdown_to_story(
+                    content,
+                    story,
+                    Paragraph,
+                    Spacer,
+                    HRFlowable,
+                    body_style,
+                    {'h1': h1_style, 'h2': h2_style, 'h3': h3_style}
+                )
                 
                 story.append(Spacer(1, 30))
                 story.append(HRFlowable(width="100%", thickness=1, color=HexColor('#10b981')))
                 story.append(Paragraph(
-                    "Generated by WellSync - Your AI-Powered Diet Companion",
+                    "Generated by SereniFit - Your AI-Powered Diet Companion",
                     ParagraphStyle('Footer', parent=body_style, alignment=TA_CENTER, textColor=HexColor('#888888'))
                 ))
                 
