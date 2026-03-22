@@ -10,6 +10,10 @@ CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "http://127
 from diet_routes import diet_bp
 app.register_blueprint(diet_bp)
 
+# Register Yoga Blueprint
+from yoga_routes import yoga_bp
+app.register_blueprint(yoga_bp)
+
 @app.route('/')
 def home():
     return redirect("https://wellsync.avsaikrishna.com", code=302)
