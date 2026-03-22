@@ -48,24 +48,24 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 // Diet Types Data
 const dietTypes = [
-  { id: "balanced", name: "Balanced", icon: GiMeal, color: "from-emerald-500 to-teal-500", description: "Well-rounded nutrition" },
-  { id: "keto", name: "Keto", icon: GiMeat, color: "from-orange-500 to-red-500", description: "Low-carb, high-fat" },
-  { id: "vegan", name: "Vegan", icon: GiFruitBowl, color: "from-green-500 to-lime-500", description: "Plant-based only" },
-  { id: "paleo", name: "Paleo", icon: GiMuscleUp, color: "from-amber-500 to-yellow-500", description: "Whole foods diet" },
-  { id: "mediterranean", name: "Mediterranean", icon: MdOutlineLocalDining, color: "from-blue-500 to-cyan-500", description: "Heart-healthy eating" },
-  { id: "lowcarb", name: "Low Carb", icon: FiTrendingUp, color: "from-purple-500 to-pink-500", description: "Reduced carbohydrates" },
+  { id: "balanced", name: "Balanced", icon: GiMeal, color: "bg-teal-700", description: "Well-rounded nutrition" },
+  { id: "keto", name: "Keto", icon: GiMeat, color: "bg-teal-700", description: "Low-carb, high-fat" },
+  { id: "vegan", name: "Vegan", icon: GiFruitBowl, color: "bg-teal-700", description: "Plant-based only" },
+  { id: "paleo", name: "Paleo", icon: GiMuscleUp, color: "bg-teal-700", description: "Whole foods diet" },
+  { id: "mediterranean", name: "Mediterranean", icon: MdOutlineLocalDining, color: "bg-teal-700", description: "Heart-healthy eating" },
+  { id: "lowcarb", name: "Low Carb", icon: FiTrendingUp, color: "bg-teal-700", description: "Reduced carbohydrates" },
 ];
 
 // Health Conditions
 const healthConditions = [
-  { id: "diabetes", name: "Diabetes", icon: GiHeartBeats, color: "bg-red-500/20 border-red-500/50" },
-  { id: "hypertension", name: "Hypertension", icon: FiHeart, color: "bg-pink-500/20 border-pink-500/50" },
-  { id: "cholesterol", name: "High Cholesterol", icon: FiActivity, color: "bg-orange-500/20 border-orange-500/50" },
-  { id: "weightloss", name: "Weight Loss", icon: GiWeightScale, color: "bg-emerald-500/20 border-emerald-500/50" },
-  { id: "musclegain", name: "Muscle Gain", icon: GiMuscleUp, color: "bg-blue-500/20 border-blue-500/50" },
-  { id: "digestive", name: "Digestive Issues", icon: GiStomach, color: "bg-yellow-500/20 border-yellow-500/50" },
-  { id: "kidney", name: "Kidney Health", icon: GiKidneys, color: "bg-purple-500/20 border-purple-500/50" },
-  { id: "mental", name: "Mental Wellness", icon: GiBrain, color: "bg-indigo-500/20 border-indigo-500/50" },
+  { id: "diabetes", name: "Diabetes", icon: GiHeartBeats },
+  { id: "hypertension", name: "Hypertension", icon: FiHeart },
+  { id: "cholesterol", name: "High Cholesterol", icon: FiActivity },
+  { id: "weightloss", name: "Weight Loss", icon: GiWeightScale },
+  { id: "musclegain", name: "Muscle Gain", icon: GiMuscleUp },
+  { id: "digestive", name: "Digestive Issues", icon: GiStomach },
+  { id: "kidney", name: "Kidney Health", icon: GiKidneys },
+  { id: "mental", name: "Mental Wellness", icon: GiBrain },
 ];
 
 
@@ -81,10 +81,10 @@ const GlassCard = ({ children, className = "", delay = 0, onClick, isSelected = 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.5, delay }}
-    whileHover={{ scale: 1.02, y: -5 }}
+    whileHover={{ scale: 1.01 }}
     onClick={onClick}
-    className={`relative overflow-hidden rounded-2xl backdrop-blur-xl 
-      ${isSelected ? 'bg-white/20 border-2 border-white/40 shadow-lg shadow-white/10' : 'bg-white/5 border border-white/10'} 
+    className={`relative overflow-hidden rounded-2xl 
+      ${isSelected ? 'bg-[#1e2a30] border-2 border-teal-600' : 'bg-[#1a1f2e] border border-[#2a3040]'} 
       transition-all duration-300 cursor-pointer ${className}`}
   >
     {children}
@@ -119,20 +119,20 @@ const MealPlanDisplay = ({ content }) => {
 
     // Emoji patterns for meal sections
     const mealPatterns = [
-      { emoji: '🌅', name: 'Breakfast', color: 'from-yellow-500 to-orange-500', bg: 'bg-yellow-500/10' },
-      { emoji: '🍳', name: 'Breakfast', color: 'from-yellow-500 to-orange-500', bg: 'bg-yellow-500/10' },
-      { emoji: '🥣', name: 'Breakfast', color: 'from-yellow-500 to-orange-500', bg: 'bg-yellow-500/10' },
-      { emoji: '🍎', name: 'Mid-Morning Snack', color: 'from-red-500 to-pink-500', bg: 'bg-red-500/10' },
-      { emoji: '🥗', name: 'Lunch', color: 'from-green-500 to-emerald-500', bg: 'bg-green-500/10' },
-      { emoji: '🍽️', name: 'Lunch', color: 'from-green-500 to-emerald-500', bg: 'bg-green-500/10' },
-      { emoji: '🥜', name: 'Afternoon Snack', color: 'from-amber-500 to-yellow-500', bg: 'bg-amber-500/10' },
-      { emoji: '🍽️', name: 'Dinner', color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500/10' },
-      { emoji: '🐟', name: 'Dinner', color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500/10' },
-      { emoji: '🥩', name: 'Dinner', color: 'from-blue-500 to-indigo-500', bg: 'bg-blue-500/10' },
-      { emoji: '🫖', name: 'Evening', color: 'from-purple-500 to-pink-500', bg: 'bg-purple-500/10' },
-      { emoji: '🌙', name: 'Evening', color: 'from-purple-500 to-pink-500', bg: 'bg-purple-500/10' },
-      { emoji: '📊', name: 'Summary', color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500/10' },
-      { emoji: '✅', name: 'Summary', color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-500/10' },
+      { emoji: '🌅', name: 'Breakfast', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🍳', name: 'Breakfast', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🥣', name: 'Breakfast', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🍎', name: 'Mid-Morning Snack', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🥗', name: 'Lunch', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🍽️', name: 'Lunch', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🥜', name: 'Afternoon Snack', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🍽️', name: 'Dinner', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🐟', name: 'Dinner', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🥩', name: 'Dinner', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🫖', name: 'Evening', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '🌙', name: 'Evening', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '📊', name: 'Summary', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
+      { emoji: '✅', name: 'Summary', color: 'bg-teal-700', bg: 'bg-[#1a2520]' },
     ];
 
     lines.forEach(line => {
@@ -146,7 +146,7 @@ const MealPlanDisplay = ({ content }) => {
 
       if (isSectionHeader) {
         // Find matching pattern for styling
-        let style = { color: 'from-gray-500 to-gray-600', bg: 'bg-gray-500/10' };
+        let style = { color: 'bg-teal-700', bg: 'bg-[#1a2520]' };
         for (const p of mealPatterns) {
           if (trimmedLine.includes(p.emoji) || trimmedLine.toLowerCase().includes(p.name.toLowerCase())) {
             style = p;
@@ -176,7 +176,7 @@ const MealPlanDisplay = ({ content }) => {
       } else {
         // Create intro section for content before first meal
         if (!sections.find(s => s.header === 'intro')) {
-          sections.unshift({ header: 'intro', style: { bg: 'bg-white/5' }, items: [] });
+          sections.unshift({ header: 'intro', style: { bg: 'bg-[#1a1f2e]' }, items: [] });
         }
         const introSection = sections.find(s => s.header === 'intro');
         if (introSection && trimmedLine) {
@@ -198,10 +198,10 @@ const MealPlanDisplay = ({ content }) => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
-          className={`rounded-xl border border-white/10 overflow-hidden ${section.style.bg}`}
+          className={`rounded-xl border border-[#2a3040] overflow-hidden ${section.style.bg}`}
         >
           {section.header !== 'intro' && (
-            <div className={`px-5 py-3 bg-gradient-to-r ${section.style.color} bg-opacity-20`}>
+            <div className={`px-5 py-3 ${section.style.color}`}>
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 {section.header}
               </h3>
@@ -214,16 +214,16 @@ const MealPlanDisplay = ({ content }) => {
               const hasNutrition = /protein|carbs?|fats?|fiber/i.test(item);
               
               return (
-                <div key={i} className={`py-1.5 ${i > 0 ? 'border-t border-white/5' : ''}`}>
+                <div key={i} className={`py-1.5 ${i > 0 ? 'border-t border-[#2a3040]' : ''}`}>
                   {hasCalories || hasNutrition ? (
-                    <p className="text-emerald-400 text-sm font-medium">{item}</p>
+                    <p className="text-teal-400 text-sm font-medium">{item}</p>
                   ) : item.startsWith('•') || item.startsWith('-') ? (
-                    <p className="text-gray-300 text-sm flex items-start gap-2">
-                      <span className="text-emerald-400 mt-0.5">•</span>
+                    <p className="text-slate-300 text-sm flex items-start gap-2">
+                      <span className="text-teal-400 mt-0.5">•</span>
                       <span>{item.replace(/^[•-]\s*/, '')}</span>
                     </p>
                   ) : (
-                    <p className="text-gray-300 text-sm leading-relaxed">{item}</p>
+                    <p className="text-slate-300 text-sm leading-relaxed">{item}</p>
                   )}
                 </div>
               );
@@ -673,12 +673,11 @@ export default function DietaryRecommendations() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-x-hidden">
-      {/* Animated Background */}
+    <div className="min-h-screen bg-[#0f1219] text-white overflow-x-hidden">
+      {/* Subtle Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[128px]" />
-        <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-purple-500/5 rounded-full blur-[128px]" />
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-teal-900/20 rounded-full blur-[200px]" />
+        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-slate-800/30 rounded-full blur-[200px]" />
       </div>
 
       {/* Main Content */}
@@ -695,14 +694,14 @@ export default function DietaryRecommendations() {
               Smart Diet Planner
             </span>
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-400 text-lg max-w-2xl mx-auto">
             Personalized nutrition recommendations powered by AI to help you achieve your health goals
           </p>
         </motion.div>
 
         {/* Tab Navigation */}
         <div className="flex justify-center mb-8 overflow-x-auto">
-          <div className="inline-flex bg-white/5 rounded-2xl p-1 backdrop-blur-lg border border-white/10">
+          <div className="inline-flex bg-[#1a1f2e] rounded-2xl p-1 border border-[#2a3040]">
             {[
               { id: "planner", label: "Meal Planner", icon: GiMeal },
               { id: "recipes", label: "Recipe Finder", icon: FiBookOpen },
@@ -715,8 +714,8 @@ export default function DietaryRecommendations() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${
                   activeTab === tab.id
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-teal-600 text-white shadow-lg shadow-teal-900/30"
+                    : "text-slate-400 hover:text-white hover:bg-[#232830]"
                 }`}
               >
                 <tab.icon />
@@ -739,10 +738,10 @@ export default function DietaryRecommendations() {
               {/* Diet Type Selection */}
               <GlassCard className="p-6">
                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                  <MdOutlineFoodBank className="text-emerald-400" />
+                  <MdOutlineFoodBank className="text-teal-400" />
                   Choose Your Diet Type
                 </h2>
-                <p className="text-gray-400 text-sm mb-6">Select a diet plan that matches your lifestyle</p>
+                <p className="text-slate-400 text-sm mb-6">Select a diet plan that matches your lifestyle</p>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {dietTypes.map((diet, index) => {
@@ -760,19 +759,19 @@ export default function DietaryRecommendations() {
                         onClick={() => setSelectedDiet(diet.id)}
                         className={`relative p-4 rounded-xl cursor-pointer transition-all text-center
                           ${isSelected 
-                            ? `bg-gradient-to-br ${diet.color} shadow-lg` 
-                            : 'bg-white/5 hover:bg-white/10 border border-white/10'}`}
+                            ? `${diet.color} shadow-lg shadow-teal-900/20` 
+                            : 'bg-[#1a1f2e] hover:bg-[#232830] border border-[#2a3040]'}`}
                       >
-                        <Icon className={`text-3xl mx-auto mb-2 ${isSelected ? 'text-white' : 'text-gray-400'}`} />
-                        <h3 className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-300'}`}>{diet.name}</h3>
-                        <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>{diet.description}</p>
+                        <Icon className={`text-3xl mx-auto mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                        <h3 className={`font-semibold ${isSelected ? 'text-white' : 'text-slate-300'}`}>{diet.name}</h3>
+                        <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>{diet.description}</p>
                         {isSelected && (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
                             className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center"
                           >
-                            <FiCheck className="text-emerald-500 text-sm" />
+                            <FiCheck className="text-teal-600 text-sm" />
                           </motion.div>
                         )}
                       </motion.div>
@@ -784,10 +783,10 @@ export default function DietaryRecommendations() {
               {/* Health Conditions */}
               <GlassCard className="p-6">
                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                  <FiHeart className="text-pink-400" />
+                  <FiHeart className="text-teal-400" />
                   Health Conditions
                 </h2>
-                <p className="text-gray-400 text-sm mb-6">Select any conditions we should consider (optional)</p>
+                <p className="text-slate-400 text-sm mb-6">Select any conditions we should consider (optional)</p>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {healthConditions.map((condition, index) => {
@@ -805,14 +804,14 @@ export default function DietaryRecommendations() {
                         onClick={() => toggleCondition(condition.id)}
                         className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border
                           ${isSelected 
-                            ? `${condition.color} border-2` 
-                            : 'bg-white/5 border-white/10 hover:border-white/20'}`}
+                            ? 'bg-teal-900/40 border-teal-600 border-2' 
+                            : 'bg-[#1a1f2e] border-[#2a3040] hover:border-[#3a4050]'}`}
                       >
-                        <Icon className={`text-xl ${isSelected ? 'text-white' : 'text-gray-400'}`} />
-                        <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-gray-300'}`}>
+                        <Icon className={`text-xl ${isSelected ? 'text-teal-400' : 'text-slate-400'}`} />
+                        <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-slate-300'}`}>
                           {condition.name}
                         </span>
-                        {isSelected && <FiCheck className="ml-auto text-emerald-400" />}
+                        {isSelected && <FiCheck className="ml-auto text-teal-400" />}
                       </motion.div>
                     );
                   })}
@@ -822,10 +821,10 @@ export default function DietaryRecommendations() {
               {/* Allergies & Restrictions */}
               <GlassCard className="p-6">
                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                  <FiActivity className="text-orange-400" />
+                  <FiActivity className="text-teal-400" />
                   Allergies & Restrictions
                 </h2>
-                <p className="text-gray-400 text-sm mb-6">Select any foods you need to avoid</p>
+                <p className="text-slate-400 text-sm mb-6">Select any foods you need to avoid</p>
                 
                 <div className="flex flex-wrap gap-3">
                   {allergiesOptions.map((allergy, index) => {
@@ -842,8 +841,8 @@ export default function DietaryRecommendations() {
                         onClick={() => toggleAllergy(allergy)}
                         className={`px-4 py-2 rounded-full font-medium transition-all flex items-center gap-2
                           ${isSelected 
-                            ? 'bg-red-500/20 border-2 border-red-500/50 text-red-300' 
-                            : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10'}`}
+                            ? 'bg-red-900/30 border-2 border-red-500/50 text-red-300' 
+                            : 'bg-[#1a1f2e] border border-[#2a3040] text-slate-400 hover:bg-[#232830]'}`}
                       >
                         {isSelected && <FiCheck className="text-sm" />}
                         {allergy}
@@ -857,14 +856,14 @@ export default function DietaryRecommendations() {
               <div className="grid md:grid-cols-2 gap-6">
                 <GlassCard className="p-6">
                   <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <FiTarget className="text-emerald-400" />
+                    <FiTarget className="text-teal-400" />
                     Daily Calorie Goal
                   </h2>
                   
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-400">Target</span>
-                      <span className="text-2xl font-bold text-emerald-400">{calorieGoal} kcal</span>
+                      <span className="text-slate-400">Target</span>
+                      <span className="text-2xl font-bold text-teal-400">{calorieGoal} kcal</span>
                     </div>
                     <input
                       type="range"
@@ -873,12 +872,12 @@ export default function DietaryRecommendations() {
                       step="50"
                       value={calorieGoal}
                       onChange={(e) => setCalorieGoal(Number(e.target.value))}
-                      className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer
+                      className="w-full h-2 bg-[#2a3040] rounded-full appearance-none cursor-pointer
                         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 
-                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 
+                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-teal-500 
                         [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
                     />
-                    <div className="flex justify-between text-xs text-gray-500">
+                    <div className="flex justify-between text-xs text-slate-500">
                       <span>1200</span>
                       <span>2500</span>
                       <span>4000</span>
@@ -888,17 +887,17 @@ export default function DietaryRecommendations() {
 
                 <GlassCard className="p-6">
                   <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                    <FiClock className="text-blue-400" />
+                    <FiClock className="text-teal-400" />
                     Preferences
                   </h2>
                   
                   <div className="space-y-4">
                     <div>
-                      <label className="text-gray-400 text-sm mb-2 block">Cuisine Preference</label>
+                      <label className="text-slate-400 text-sm mb-2 block">Cuisine Preference</label>
                       <select
                         value={cuisinePreference}
                         onChange={(e) => setCuisinePreference(e.target.value)}
-                        className="w-full p-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-emerald-500 focus:outline-none transition-colors"
+                        className="w-full p-3 bg-[#161a22] border border-[#2a3040] rounded-xl text-white focus:border-teal-500 focus:outline-none transition-colors"
                       >
                         <option value="any">Any Cuisine</option>
                         <option value="indian">Indian</option>
@@ -909,11 +908,11 @@ export default function DietaryRecommendations() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-gray-400 text-sm mb-2 block">Max Cooking Time</label>
+                      <label className="text-slate-400 text-sm mb-2 block">Max Cooking Time</label>
                       <select
                         value={cookingTime}
                         onChange={(e) => setCookingTime(e.target.value)}
-                        className="w-full p-3 bg-white/5 border border-white/10 rounded-xl text-white focus:border-emerald-500 focus:outline-none transition-colors"
+                        className="w-full p-3 bg-[#161a22] border border-[#2a3040] rounded-xl text-white focus:border-teal-500 focus:outline-none transition-colors"
                       >
                         <option value="15">15 minutes</option>
                         <option value="30">30 minutes</option>
@@ -932,8 +931,8 @@ export default function DietaryRecommendations() {
                 whileTap={{ scale: 0.98 }}
                 onClick={generateMealPlan}
                 disabled={isLoading}
-                className="w-full py-4 px-8 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 
-                  text-white font-bold text-lg shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 
+                className="w-full py-4 px-8 rounded-2xl bg-teal-600 hover:bg-teal-700
+                  text-white font-bold text-lg shadow-lg shadow-teal-900/30 
                   transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               >
                 {isLoading ? (
@@ -965,10 +964,10 @@ export default function DietaryRecommendations() {
                 <div className="lg:col-span-2 space-y-6">
                   <GlassCard className="p-6">
                     <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                      <GiCookingPot className="text-orange-400" />
+                      <GiCookingPot className="text-teal-400" />
                       Find Recipes by Ingredients
                     </h2>
-                    <p className="text-gray-400 text-sm mb-4">
+                    <p className="text-slate-400 text-sm mb-4">
                       Add the ingredients you have and we&apos;ll suggest delicious recipes
                     </p>
                     
@@ -980,7 +979,7 @@ export default function DietaryRecommendations() {
                           initial={{ scale: 0.8, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           exit={{ scale: 0.8, opacity: 0 }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-900/30 border border-teal-600/40 text-teal-300 text-sm"
                         >
                           {tag}
                           <button onClick={() => removeIngredientTag(tag)} className="hover:text-white transition-colors">
@@ -998,8 +997,8 @@ export default function DietaryRecommendations() {
                         onChange={(e) => setRecipeIngredientInput(e.target.value)}
                         onKeyDown={handleIngredientKeyDown}
                         placeholder={recipeIngredientTags.length > 0 ? "Add more ingredients..." : "e.g., chicken, tomatoes, garlic, olive oil..."}
-                        className="w-full p-4 pr-24 bg-white/5 border border-white/10 rounded-xl text-white 
-                          placeholder-gray-500 focus:border-orange-500 focus:outline-none transition-colors"
+                        className="w-full p-4 pr-24 bg-[#161a22] border border-[#2a3040] rounded-xl text-white 
+                          placeholder-slate-500 focus:border-teal-500 focus:outline-none transition-colors"
                       />
                       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                         {recipeIngredientInput.trim() && (
@@ -1008,24 +1007,24 @@ export default function DietaryRecommendations() {
                             animate={{ scale: 1 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => addIngredientTag()}
-                            className="p-2 rounded-lg bg-orange-500/30 hover:bg-orange-500/50 transition-colors"
+                            className="p-2 rounded-lg bg-teal-600/30 hover:bg-teal-600/50 transition-colors"
                           >
-                            <FiPlus className="text-orange-300" />
+                            <FiPlus className="text-teal-300" />
                           </motion.button>
                         )}
-                        <MdOutlineFoodBank className="text-2xl text-gray-500 p-1" />
+                        <MdOutlineFoodBank className="text-2xl text-slate-500 p-1" />
                       </div>
                     </div>
 
-                    <p className="text-gray-500 text-xs mt-2">Press Enter or comma to add each ingredient</p>
+                    <p className="text-slate-500 text-xs mt-2">Press Enter or comma to add each ingredient</p>
                     
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => generateRecipes()}
                       disabled={isLoadingRecipes}
-                      className="mt-4 w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 
-                        text-white font-bold shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 
+                      className="mt-4 w-full py-3.5 px-6 rounded-xl bg-teal-600 hover:bg-teal-700
+                        text-white font-bold shadow-lg shadow-teal-900/25 
                         transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isLoadingRecipes ? (
@@ -1047,7 +1046,7 @@ export default function DietaryRecommendations() {
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm flex items-start gap-3"
+                      className="bg-red-900/20 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm flex items-start gap-3"
                     >
                       <FiActivity className="text-red-400 text-lg flex-shrink-0 mt-0.5" />
                       <div>
@@ -1061,15 +1060,15 @@ export default function DietaryRecommendations() {
                   {isLoadingRecipes && (
                     <div className="space-y-4">
                       {[1, 2, 3].map((i) => (
-                        <div key={i} className="bg-white/5 rounded-xl p-5 border border-white/10 animate-pulse">
+                        <div key={i} className="bg-[#1a1f2e] rounded-xl p-5 border border-[#2a3040] animate-pulse">
                           <div className="flex gap-4">
-                            <div className="w-20 h-20 rounded-xl bg-white/10" />
+                            <div className="w-20 h-20 rounded-xl bg-[#2a3040]" />
                             <div className="flex-1 space-y-2">
-                              <div className="h-5 bg-white/10 rounded w-2/3" />
-                              <div className="h-4 bg-white/10 rounded w-1/3" />
+                              <div className="h-5 bg-[#2a3040] rounded w-2/3" />
+                              <div className="h-4 bg-[#2a3040] rounded w-1/3" />
                               <div className="flex gap-2">
-                                <div className="h-6 bg-white/10 rounded-full w-20" />
-                                <div className="h-6 bg-white/10 rounded-full w-16" />
+                                <div className="h-6 bg-[#2a3040] rounded-full w-20" />
+                                <div className="h-6 bg-[#2a3040] rounded-full w-16" />
                               </div>
                             </div>
                           </div>
@@ -1082,12 +1081,12 @@ export default function DietaryRecommendations() {
                   {!isLoadingRecipes && filteredRecipes.length > 0 && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-2">
-                          <MdOutlineRestaurant className="text-orange-400" />
+                        <h3 className="text-lg font-semibold text-slate-300 flex items-center gap-2">
+                          <MdOutlineRestaurant className="text-teal-400" />
                           {filteredRecipes.length} Recipe{filteredRecipes.length !== 1 ? "s" : ""} Found
                         </h3>
                         {recipeResults.length !== filteredRecipes.length && (
-                          <span className="text-gray-500 text-sm">
+                          <span className="text-slate-500 text-sm">
                             {recipeResults.length - filteredRecipes.length} filtered out
                           </span>
                         )}
@@ -1099,8 +1098,8 @@ export default function DietaryRecommendations() {
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: index * 0.08 }}
-                          className="bg-gradient-to-r from-white/5 to-white/[0.08] backdrop-blur-lg rounded-xl border border-white/10 
-                            overflow-hidden hover:border-orange-500/30 transition-all group"
+                          className="bg-[#1a1f2e] rounded-xl border border-[#2a3040] 
+                            overflow-hidden hover:border-teal-600/40 transition-all group"
                         >
                           {/* Card Header */}
                           <div
@@ -1108,22 +1107,22 @@ export default function DietaryRecommendations() {
                             onClick={() => setExpandedRecipe(expandedRecipe === index ? null : index)}
                           >
                             <div className="flex items-start gap-4">
-                              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20">
+                              <div className="w-16 h-16 rounded-xl bg-teal-700 flex items-center justify-center flex-shrink-0 shadow-lg shadow-teal-900/20">
                                 <GiCookingPot className="text-2xl text-white" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-semibold text-lg group-hover:text-orange-400 transition-colors truncate">
+                                <h4 className="text-white font-semibold text-lg group-hover:text-teal-400 transition-colors truncate">
                                   {recipe.name}
                                 </h4>
-                                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-gray-400 text-sm">
+                                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-slate-400 text-sm">
                                   <span className="flex items-center gap-1">
-                                    <FiZap className="text-emerald-400" /> {recipe.calories} kcal
+                                    <FiZap className="text-teal-400" /> {recipe.calories} kcal
                                   </span>
                                   <span className="flex items-center gap-1">
-                                    <FiClock className="text-blue-400" /> {recipe.cookingTime} min
+                                    <FiClock className="text-teal-400" /> {recipe.cookingTime} min
                                   </span>
                                   <span className="flex items-center gap-1">
-                                    <GiMuscleUp className="text-purple-400" /> {recipe.servings} servings
+                                    <GiMuscleUp className="text-teal-400" /> {recipe.servings} servings
                                   </span>
                                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                     recipe.difficulty === "Easy" ? "bg-green-500/20 text-green-400" :
@@ -1135,7 +1134,7 @@ export default function DietaryRecommendations() {
                                 </div>
                                 <div className="flex flex-wrap gap-1.5 mt-2">
                                   {(recipe.tags || []).map((tag, i) => (
-                                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300 border border-white/5">
+                                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-[#232830] text-slate-300 border border-[#2a3040]">
                                       {tag}
                                     </span>
                                   ))}
@@ -1143,26 +1142,26 @@ export default function DietaryRecommendations() {
                               </div>
                               <motion.div
                                 animate={{ rotate: expandedRecipe === index ? 90 : 0 }}
-                                className="text-gray-500 group-hover:text-white transition-colors flex-shrink-0 mt-2"
+                                className="text-slate-500 group-hover:text-white transition-colors flex-shrink-0 mt-2"
                               >
                                 <FiChevronRight className="text-xl" />
                               </motion.div>
                             </div>
 
                             {/* Compact Macros Bar */}
-                            <div className="flex gap-4 mt-3 pt-3 border-t border-white/5">
+                            <div className="flex gap-4 mt-3 pt-3 border-t border-[#2a3040]">
                               {[
-                                { label: "Protein", val: recipe.protein, color: "text-blue-400", bg: "bg-blue-500" },
-                                { label: "Carbs", val: recipe.carbs, color: "text-orange-400", bg: "bg-orange-500" },
-                                { label: "Fats", val: recipe.fats, color: "text-pink-400", bg: "bg-pink-500" },
-                                { label: "Fiber", val: recipe.fiber, color: "text-green-400", bg: "bg-green-500" },
+                                { label: "Protein", val: recipe.protein, color: "text-teal-400", bg: "bg-teal-600" },
+                                { label: "Carbs", val: recipe.carbs, color: "text-teal-400", bg: "bg-teal-600" },
+                                { label: "Fats", val: recipe.fats, color: "text-teal-400", bg: "bg-teal-600" },
+                                { label: "Fiber", val: recipe.fiber, color: "text-teal-400", bg: "bg-teal-600" },
                               ].map((m) => (
                                 <div key={m.label} className="flex-1">
                                   <div className="flex justify-between text-xs mb-1">
-                                    <span className="text-gray-500">{m.label}</span>
+                                    <span className="text-slate-500">{m.label}</span>
                                     <span className={m.color}>{m.val}g</span>
                                   </div>
-                                  <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                  <div className="h-1 bg-[#2a3040] rounded-full overflow-hidden">
                                     <div className={`h-full ${m.bg} rounded-full`} style={{ width: `${Math.min((m.val / 60) * 100, 100)}%` }} />
                                   </div>
                                 </div>
@@ -1180,17 +1179,17 @@ export default function DietaryRecommendations() {
                                 transition={{ duration: 0.3 }}
                                 className="overflow-hidden"
                               >
-                                <div className="px-5 pb-5 space-y-5 border-t border-white/10">
+                                <div className="px-5 pb-5 space-y-5 border-t border-[#2a3040]">
                                   {/* Ingredients */}
                                   <div className="pt-4">
                                     <h5 className="text-white font-semibold mb-3 flex items-center gap-2">
-                                      <FiList className="text-orange-400" />
+                                      <FiList className="text-teal-400" />
                                       Ingredients
                                     </h5>
                                     <div className="grid sm:grid-cols-2 gap-2">
                                       {(recipe.ingredients || []).map((ing, i) => (
-                                        <div key={i} className="flex items-start gap-2 text-gray-300 text-sm">
-                                          <span className="text-emerald-400 mt-0.5">•</span>
+                                        <div key={i} className="flex items-start gap-2 text-slate-300 text-sm">
+                                          <span className="text-teal-400 mt-0.5">•</span>
                                           <span>{ing}</span>
                                         </div>
                                       ))}
@@ -1200,17 +1199,17 @@ export default function DietaryRecommendations() {
                                   {/* Instructions */}
                                   <div>
                                     <h5 className="text-white font-semibold mb-3 flex items-center gap-2">
-                                      <FiBookOpen className="text-blue-400" />
+                                      <FiBookOpen className="text-teal-400" />
                                       Instructions
                                     </h5>
                                     <ol className="space-y-2">
                                       {(recipe.instructions || []).map((step, i) => (
                                         <li key={i} className="flex items-start gap-3 text-sm">
-                                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 
+                                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-teal-700
                                             flex items-center justify-center text-white text-xs font-bold">
                                             {i + 1}
                                           </span>
-                                          <span className="text-gray-300 leading-relaxed pt-0.5">{step}</span>
+                                          <span className="text-slate-300 leading-relaxed pt-0.5">{step}</span>
                                         </li>
                                       ))}
                                     </ol>
@@ -1218,11 +1217,11 @@ export default function DietaryRecommendations() {
 
                                   {/* Nutrition Benefits */}
                                   {recipe.nutritionBenefits && (
-                                    <div className="bg-emerald-500/10 rounded-lg p-3 border border-emerald-500/20">
-                                      <h5 className="text-emerald-400 font-semibold text-sm mb-1 flex items-center gap-2">
+                                    <div className="bg-teal-900/20 rounded-lg p-3 border border-teal-700/30">
+                                      <h5 className="text-teal-400 font-semibold text-sm mb-1 flex items-center gap-2">
                                         <FiHeart /> Nutrition Benefits
                                       </h5>
-                                      <p className="text-gray-300 text-sm leading-relaxed">{recipe.nutritionBenefits}</p>
+                                      <p className="text-slate-300 text-sm leading-relaxed">{recipe.nutritionBenefits}</p>
                                     </div>
                                   )}
                                 </div>
@@ -1237,12 +1236,12 @@ export default function DietaryRecommendations() {
                   {/* Empty State */}
                   {!isLoadingRecipes && recipeResults.length === 0 && !recipeError && (
                     <div className="text-center py-16">
-                      <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-orange-500/10 to-red-500/10 
-                        flex items-center justify-center border border-white/5">
-                        <GiCookingPot className="text-4xl text-orange-400/60" />
+                      <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#1a2520]
+                        flex items-center justify-center border border-[#2a3040]">
+                        <GiCookingPot className="text-4xl text-teal-400/60" />
                       </div>
                       <h3 className="text-xl font-semibold text-white mb-2">Ready to Cook?</h3>
-                      <p className="text-gray-400 max-w-md mx-auto">
+                      <p className="text-slate-400 max-w-md mx-auto">
                         Add your available ingredients above and click Find Recipes to get AI-powered recipe suggestions tailored to your diet.
                       </p>
                     </div>
@@ -1251,12 +1250,12 @@ export default function DietaryRecommendations() {
                   {/* No filtered results */}
                   {!isLoadingRecipes && recipeResults.length > 0 && filteredRecipes.length === 0 && (
                     <div className="text-center py-10">
-                      <FiActivity className="text-3xl text-gray-500 mx-auto mb-3" />
-                      <p className="text-gray-400">No recipes match your current filters. Try adjusting them.</p>
+                      <FiActivity className="text-3xl text-slate-500 mx-auto mb-3" />
+                      <p className="text-slate-400">No recipes match your current filters. Try adjusting them.</p>
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setRecipeFilters({ mealType: "any", cookingTime: "any", difficulty: "any" })}
-                        className="mt-3 px-4 py-2 text-sm rounded-lg bg-white/10 text-gray-300 hover:bg-white/20"
+                        className="mt-3 px-4 py-2 text-sm rounded-lg bg-[#1a1f2e] text-slate-300 hover:bg-[#232830]"
                       >
                         Clear Filters
                       </motion.button>
@@ -1271,14 +1270,14 @@ export default function DietaryRecommendations() {
                     <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center justify-between bg-white/5 rounded-xl p-3 border border-white/10"
+                      className="flex items-center justify-between bg-[#1a1f2e] rounded-xl p-3 border border-[#2a3040]"
                     >
-                      <span className="text-gray-400 text-sm">
+                      <span className="text-slate-400 text-sm">
                         Filters active
                       </span>
                       <button
                         onClick={() => setRecipeFilters({ mealType: "any", cookingTime: "any", difficulty: "any" })}
-                        className="text-orange-400 text-sm font-medium hover:text-orange-300 transition-colors"
+                        className="text-teal-400 text-sm font-medium hover:text-teal-300 transition-colors"
                       >
                         Clear all
                       </button>
@@ -1287,13 +1286,13 @@ export default function DietaryRecommendations() {
 
                   <GlassCard className="p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <FiActivity className="text-purple-400" />
+                      <FiActivity className="text-teal-400" />
                       Recipe Filters
                     </h3>
                     
                     <div className="space-y-5">
                       <div>
-                        <label className="text-gray-400 text-sm mb-2 block">Meal Type</label>
+                        <label className="text-slate-400 text-sm mb-2 block">Meal Type</label>
                         <div className="grid grid-cols-2 gap-2">
                           {[
                             { label: "All", value: "any" },
@@ -1307,8 +1306,8 @@ export default function DietaryRecommendations() {
                               onClick={() => setRecipeFilters(f => ({ ...f, mealType: type.value }))}
                               className={`p-2 rounded-lg border text-sm transition-all ${
                                 recipeFilters.mealType === type.value
-                                  ? "bg-orange-500/20 border-orange-500/50 text-orange-300"
-                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                                  ? "bg-teal-900/40 border-teal-600 text-teal-300"
+                                  : "bg-[#161a22] hover:bg-[#232830] border-[#2a3040] text-slate-400 hover:text-white"
                               }`}
                             >
                               {type.label}
@@ -1318,7 +1317,7 @@ export default function DietaryRecommendations() {
                       </div>
                       
                       <div>
-                        <label className="text-gray-400 text-sm mb-2 block">Max Cooking Time</label>
+                        <label className="text-slate-400 text-sm mb-2 block">Max Cooking Time</label>
                         <div className="flex gap-2">
                           {[
                             { label: "Any", value: "any" },
@@ -1331,8 +1330,8 @@ export default function DietaryRecommendations() {
                               onClick={() => setRecipeFilters(f => ({ ...f, cookingTime: time.value }))}
                               className={`flex-1 p-2 rounded-lg border text-sm transition-all ${
                                 recipeFilters.cookingTime === time.value
-                                  ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
-                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                                  ? "bg-teal-900/40 border-teal-600 text-teal-300"
+                                  : "bg-[#161a22] hover:bg-[#232830] border-[#2a3040] text-slate-400 hover:text-white"
                               }`}
                             >
                               {time.label}
@@ -1342,7 +1341,7 @@ export default function DietaryRecommendations() {
                       </div>
                       
                       <div>
-                        <label className="text-gray-400 text-sm mb-2 block">Difficulty</label>
+                        <label className="text-slate-400 text-sm mb-2 block">Difficulty</label>
                         <div className="flex gap-2">
                           {[
                             { label: "Any", value: "any" },
@@ -1355,8 +1354,8 @@ export default function DietaryRecommendations() {
                               onClick={() => setRecipeFilters(f => ({ ...f, difficulty: diff.value }))}
                               className={`flex-1 p-2 rounded-lg border text-sm transition-all ${
                                 recipeFilters.difficulty === diff.value
-                                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
-                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                                  ? "bg-teal-900/40 border-teal-600 text-teal-300"
+                                  : "bg-[#161a22] hover:bg-[#232830] border-[#2a3040] text-slate-400 hover:text-white"
                               }`}
                             >
                               {diff.label}
@@ -1370,19 +1369,19 @@ export default function DietaryRecommendations() {
                   {/* Quick Categories */}
                   <GlassCard className="p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <FiAward className="text-yellow-400" />
+                      <FiAward className="text-teal-400" />
                       Quick Categories
                     </h3>
-                    <p className="text-gray-500 text-xs mb-3">Click a category to generate recipes</p>
+                    <p className="text-slate-500 text-xs mb-3">Click a category to generate recipes</p>
                     
                     <div className="space-y-2">
                       {[
-                        { name: "High Protein", icon: GiMuscleUp, color: "text-blue-400", gradient: "from-blue-500/20 to-cyan-500/10" },
-                        { name: "Low Carb", icon: FiTrendingUp, color: "text-green-400", gradient: "from-green-500/20 to-emerald-500/10" },
-                        { name: "Quick & Easy", icon: FiClock, color: "text-orange-400", gradient: "from-orange-500/20 to-yellow-500/10" },
-                        { name: "Vegetarian", icon: GiFruitBowl, color: "text-emerald-400", gradient: "from-emerald-500/20 to-lime-500/10" },
-                        { name: "Heart Healthy", icon: FiHeart, color: "text-pink-400", gradient: "from-pink-500/20 to-rose-500/10" },
-                        { name: "Meal Prep", icon: GiMeal, color: "text-purple-400", gradient: "from-purple-500/20 to-indigo-500/10" },
+                        { name: "High Protein", icon: GiMuscleUp, color: "text-teal-400" },
+                        { name: "Low Carb", icon: FiTrendingUp, color: "text-teal-400" },
+                        { name: "Quick & Easy", icon: FiClock, color: "text-teal-400" },
+                        { name: "Vegetarian", icon: GiFruitBowl, color: "text-teal-400" },
+                        { name: "Heart Healthy", icon: FiHeart, color: "text-teal-400" },
+                        { name: "Meal Prep", icon: GiMeal, color: "text-teal-400" },
                       ].map((cat) => {
                         const CatIcon = cat.icon;
                         return (
@@ -1392,12 +1391,12 @@ export default function DietaryRecommendations() {
                             whileTap={{ scale: 0.98 }}
                             onClick={() => generateRecipes(cat.name)}
                             disabled={isLoadingRecipes}
-                            className={`w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r ${cat.gradient} 
-                              border border-white/5 hover:border-white/20 transition-all disabled:opacity-50`}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl bg-[#161a22]
+                              border border-[#2a3040] hover:border-teal-600/40 transition-all disabled:opacity-50`}
                           >
                             <CatIcon className={`text-lg ${cat.color}`} />
                             <span className={`font-medium text-sm ${cat.color}`}>{cat.name}</span>
-                            <FiChevronRight className="ml-auto text-gray-600 text-sm" />
+                            <FiChevronRight className="ml-auto text-slate-600 text-sm" />
                           </motion.button>
                         );
                       })}
@@ -1405,10 +1404,10 @@ export default function DietaryRecommendations() {
                   </GlassCard>
 
                   {/* Diet Badge */}
-                  <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 rounded-xl p-4 border border-emerald-500/20">
-                    <p className="text-emerald-400 text-sm font-semibold mb-1">Active Diet</p>
+                  <div className="bg-[#1a2520] rounded-xl p-4 border border-teal-800/40">
+                    <p className="text-teal-400 text-sm font-semibold mb-1">Active Diet</p>
                     <p className="text-white font-bold text-lg capitalize">{selectedDiet}</p>
-                    <p className="text-gray-400 text-xs mt-1">Recipes follow your {selectedDiet} diet preferences</p>
+                    <p className="text-slate-400 text-xs mt-1">Recipes follow your {selectedDiet} diet preferences</p>
                   </div>
                 </div>
               </div>
@@ -1427,7 +1426,7 @@ export default function DietaryRecommendations() {
               <GlassCard className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                    <MdHistory className="text-purple-400" />
+                    <MdHistory className="text-teal-400" />
                     Saved Meal Plans
                   </h2>
                   <motion.button
@@ -1435,7 +1434,7 @@ export default function DietaryRecommendations() {
                     whileTap={{ scale: 0.95 }}
                     onClick={loadSavedPlans}
                     disabled={isLoadingHistory}
-                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2"
+                    className="px-4 py-2 rounded-xl bg-[#232830] hover:bg-[#2a3040] transition-colors flex items-center gap-2"
                   >
                     <FiRefreshCw className={isLoadingHistory ? 'animate-spin' : ''} />
                     Refresh
@@ -1444,7 +1443,7 @@ export default function DietaryRecommendations() {
                 
                 {isLoadingHistory ? (
                   <div className="flex items-center justify-center py-12">
-                    <FiRefreshCw className="animate-spin text-3xl text-emerald-400" />
+                    <FiRefreshCw className="animate-spin text-3xl text-teal-400" />
                   </div>
                 ) : savedPlans.length > 0 ? (
                   <div className="space-y-4">
@@ -1454,7 +1453,7 @@ export default function DietaryRecommendations() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="bg-white/5 rounded-xl p-5 border border-white/10 hover:border-white/20 transition-all"
+                        className="bg-[#1a1f2e] rounded-xl p-5 border border-[#2a3040] hover:border-[#3a4050] transition-all"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1 min-w-0">
@@ -1466,20 +1465,20 @@ export default function DietaryRecommendations() {
                             </div>
                             <div className="flex flex-wrap gap-2 mb-3">
                               {plan.diet_type && (
-                                <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
+                                <span className="text-xs px-2 py-1 rounded-full bg-teal-900/30 text-teal-400">
                                   {plan.diet_type}
                                 </span>
                               )}
                               {plan.calorie_goal && (
-                                <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                                <span className="text-xs px-2 py-1 rounded-full bg-teal-900/30 text-teal-400">
                                   {plan.calorie_goal} kcal
                                 </span>
                               )}
-                              <span className="text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-400">
+                              <span className="text-xs px-2 py-1 rounded-full bg-teal-900/30 text-teal-400">
                                 {plan.plan_type === 'recipe' ? 'Recipe' : 'Meal Plan'}
                               </span>
                             </div>
-                            <p className="text-gray-500 text-sm flex items-center gap-2">
+                            <p className="text-slate-500 text-sm flex items-center gap-2">
                               <FiCalendar className="flex-shrink-0" />
                               {new Date(plan.created_at).toLocaleDateString('en-US', {
                                 year: 'numeric',
@@ -1495,25 +1494,25 @@ export default function DietaryRecommendations() {
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => toggleFavorite(plan.id)}
-                              className="p-2 rounded-lg bg-white/5 hover:bg-yellow-500/20 transition-colors"
+                              className="p-2 rounded-lg bg-[#161a22] hover:bg-[#232830] transition-colors"
                               title="Toggle Favorite"
                             >
-                              <FiStar className={plan.is_favorite ? 'text-yellow-400' : 'text-gray-400'} />
+                              <FiStar className={plan.is_favorite ? 'text-yellow-400' : 'text-slate-400'} />
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => loadPlan(plan)}
-                              className="p-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 transition-colors"
+                              className="p-2 rounded-lg bg-teal-900/30 hover:bg-teal-900/50 transition-colors"
                               title="View Plan"
                             >
-                              <FiChevronRight className="text-emerald-400" />
+                              <FiChevronRight className="text-teal-400" />
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => deletePlan(plan.id)}
-                              className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                              className="p-2 rounded-lg bg-red-900/20 hover:bg-red-900/30 transition-colors"
                               title="Delete Plan"
                             >
                               <FiTrash2 className="text-red-400" />
@@ -1525,18 +1524,18 @@ export default function DietaryRecommendations() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
-                      <FiList className="text-3xl text-gray-500" />
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[#1a1f2e] flex items-center justify-center">
+                      <FiList className="text-3xl text-slate-500" />
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">No Saved Plans Yet</h3>
-                    <p className="text-gray-400 mb-6">
+                    <p className="text-slate-400 mb-6">
                       Generate your first meal plan and it will appear here.
                     </p>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setActiveTab("planner")}
-                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold"
+                      className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold"
                     >
                       Create Meal Plan
                     </motion.button>
@@ -1559,7 +1558,7 @@ export default function DietaryRecommendations() {
                 <GlassCard className="p-8">
                   <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
                     <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                      <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500">
+                      <div className="p-3 rounded-xl bg-teal-700">
                         <GiMeal className="text-2xl text-white" />
                       </div>
                       Your Personalized Plan
@@ -1569,7 +1568,7 @@ export default function DietaryRecommendations() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setActiveTab("planner")}
-                        className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 rounded-xl bg-[#232830] hover:bg-[#2a3040] transition-colors flex items-center gap-2"
                       >
                         <FiRefreshCw />
                         New Plan
@@ -1587,7 +1586,7 @@ export default function DietaryRecommendations() {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => exportPlan('txt')}
                       disabled={isExporting}
-                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 
+                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-teal-600 hover:bg-teal-700
                         text-white font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {isExporting ? <FiRefreshCw className="animate-spin" /> : <FiFileText />}
@@ -1598,7 +1597,7 @@ export default function DietaryRecommendations() {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => exportPlan('pdf')}
                       disabled={isExporting}
-                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 
+                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-slate-700 hover:bg-slate-600
                         text-white font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                     >
                       {isExporting ? <FiRefreshCw className="animate-spin" /> : <FiDownload />}
@@ -1608,7 +1607,7 @@ export default function DietaryRecommendations() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setActiveTab("history")}
-                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-white/10 hover:bg-white/20 
+                      className="flex-1 min-w-[150px] py-3 px-6 rounded-xl bg-[#232830] hover:bg-[#2a3040]
                         text-white font-bold transition-colors flex items-center justify-center gap-2"
                     >
                       <MdHistory />
@@ -1619,12 +1618,12 @@ export default function DietaryRecommendations() {
               ) : (
                 <GlassCard className="p-12 text-center">
                   <div className="max-w-md mx-auto">
-                    <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 
+                    <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#1a2520]
                       flex items-center justify-center">
-                      <GiMeal className="text-4xl text-emerald-400" />
+                      <GiMeal className="text-4xl text-teal-400" />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-3">No Plan Generated Yet</h3>
-                    <p className="text-gray-400 mb-6">
+                    <p className="text-slate-400 mb-6">
                       Head over to the Meal Planner tab to create your personalized nutrition plan based on your preferences and health goals.
                     </p>
                     <div className="flex flex-wrap gap-4 justify-center">
@@ -1632,8 +1631,8 @@ export default function DietaryRecommendations() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setActiveTab("planner")}
-                        className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 
-                          text-white font-bold shadow-lg shadow-emerald-500/25 flex items-center gap-2"
+                        className="px-8 py-3 rounded-xl bg-teal-600 hover:bg-teal-700
+                          text-white font-bold shadow-lg shadow-teal-900/25 flex items-center gap-2"
                       >
                         <FiTarget />
                         Create My Plan
@@ -1643,7 +1642,7 @@ export default function DietaryRecommendations() {
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setActiveTab("history")}
-                          className="px-8 py-3 rounded-xl bg-white/10 hover:bg-white/20 
+                          className="px-8 py-3 rounded-xl bg-[#232830] hover:bg-[#2a3040]
                             text-white font-bold flex items-center gap-2"
                         >
                           <MdHistory />
@@ -1658,24 +1657,23 @@ export default function DietaryRecommendations() {
               {/* Quick Stats */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Daily Calories", value: `${calorieGoal}`, unit: "kcal", color: "from-emerald-500 to-teal-500", icon: FiZap },
-                  { label: "Water Goal", value: "8", unit: "glasses", color: "from-blue-500 to-cyan-500", icon: FiDroplet },
-                  { label: "Saved Plans", value: `${savedPlans.length}`, unit: "plans", color: "from-purple-500 to-pink-500", icon: FiList },
-                  { label: "Diet Type", value: dietTypes.find(d => d.id === selectedDiet)?.name || "Balanced", unit: "", color: "from-orange-500 to-red-500", icon: FiHeart },
+                  { label: "Daily Calories", value: `${calorieGoal}`, unit: "kcal", icon: FiZap },
+                  { label: "Water Goal", value: "8", unit: "glasses", icon: FiDroplet },
+                  { label: "Saved Plans", value: `${savedPlans.length}`, unit: "plans", icon: FiList },
+                  { label: "Diet Type", value: dietTypes.find(d => d.id === selectedDiet)?.name || "Balanced", unit: "", icon: FiHeart },
                 ].map((stat, index) => (
                   <motion.div
                     key={stat.label}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className="relative overflow-hidden rounded-xl bg-white/5 backdrop-blur-lg border border-white/10 p-5"
+                    className="relative overflow-hidden rounded-xl bg-[#1a1f2e] border border-[#2a3040] p-5"
                   >
-                    <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-5`} />
                     <div className="relative">
-                      <stat.icon className={`text-2xl mb-3 bg-gradient-to-r ${stat.color} bg-clip-text text-transparent`} />
-                      <p className="text-gray-400 text-sm">{stat.label}</p>
+                      <stat.icon className="text-2xl mb-3 text-teal-400" />
+                      <p className="text-slate-400 text-sm">{stat.label}</p>
                       <p className="text-2xl font-bold text-white mt-1">
-                        {stat.value} <span className="text-sm text-gray-400 font-normal">{stat.unit}</span>
+                        {stat.value} <span className="text-sm text-slate-400 font-normal">{stat.unit}</span>
                       </p>
                     </div>
                   </motion.div>
