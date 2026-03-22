@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth, useUser } from "@clerk/clerk-react";
@@ -17,9 +17,6 @@ import {
   FiBookOpen,
   FiTrendingUp,
   FiAward,
-  FiCoffee,
-  FiSun,
-  FiMoon,
   FiZap,
   FiDownload,
   FiTrash2,
@@ -43,10 +40,6 @@ import {
   MdOutlineLocalDining,
   MdOutlineFoodBank,
   MdOutlineRestaurant,
-  MdFreeBreakfast,
-  MdLunchDining,
-  MdDinnerDining,
-  MdNightlife,
   MdHistory,
 } from "react-icons/md";
 import Dictaphone from "../Dictaphone";
@@ -75,13 +68,7 @@ const healthConditions = [
   { id: "mental", name: "Mental Wellness", icon: GiBrain, color: "bg-indigo-500/20 border-indigo-500/50" },
 ];
 
-// Meal Times
-const mealTimes = [
-  { id: "breakfast", name: "Breakfast", icon: MdFreeBreakfast, time: "7:00 - 9:00 AM", color: "from-yellow-400 to-orange-400" },
-  { id: "lunch", name: "Lunch", icon: MdLunchDining, time: "12:00 - 2:00 PM", color: "from-green-400 to-emerald-400" },
-  { id: "snack", name: "Snacks", icon: FiCoffee, time: "4:00 - 5:00 PM", color: "from-pink-400 to-rose-400" },
-  { id: "dinner", name: "Dinner", icon: MdDinnerDining, time: "7:00 - 9:00 PM", color: "from-blue-400 to-indigo-400" },
-];
+
 
 // Allergies/Restrictions
 const allergiesOptions = [
@@ -104,186 +91,7 @@ const GlassCard = ({ children, className = "", delay = 0, onClick, isSelected = 
   </motion.div>
 );
 
-// Progress Ring Component
-const ProgressRing = ({ percent, size = 120, strokeWidth = 8, color = "#10b981" }) => {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (percent / 100) * circumference;
 
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke="rgba(255,255,255,0.1)"
-        strokeWidth={strokeWidth}
-      />
-      <motion.circle
-        initial={{ strokeDashoffset: circumference }}
-        animate={{ strokeDashoffset: offset }}
-        transition={{ duration: 1.5, ease: "easeOut" }}
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-      />
-    </svg>
-  );
-};
-
-// Water Tracker Component
-const WaterTracker = ({ glasses, setGlasses, goal = 8 }) => {
-  const percent = Math.min((glasses / goal) * 100, 100);
-  
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative">
-        <ProgressRing percent={percent} color="#3b82f6" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <FiDroplet className="text-3xl text-blue-400 mb-1" />
-          <span className="text-2xl font-bold text-white">{glasses}</span>
-          <span className="text-xs text-gray-400">/ {goal} glasses</span>
-        </div>
-      </div>
-      <div className="flex gap-3 mt-4">
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setGlasses(Math.max(0, glasses - 1))}
-          className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-        >
-          <FiMinus className="text-white" />
-        </motion.button>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setGlasses(Math.min(goal + 4, glasses + 1))}
-          className="p-3 rounded-full bg-blue-500/30 hover:bg-blue-500/50 transition-colors"
-        >
-          <FiPlus className="text-white" />
-        </motion.button>
-      </div>
-    </div>
-  );
-};
-
-// Calorie Ring Component
-const CalorieTracker = ({ consumed, goal }) => {
-  const percent = Math.min((consumed / goal) * 100, 100);
-  const remaining = Math.max(goal - consumed, 0);
-  
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative">
-        <ProgressRing percent={percent} size={140} color="#10b981" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold text-white">{consumed}</span>
-          <span className="text-sm text-gray-400">kcal</span>
-        </div>
-      </div>
-      <div className="mt-4 text-center">
-        <p className="text-emerald-400 font-semibold">{remaining} kcal remaining</p>
-        <p className="text-gray-500 text-sm">Daily goal: {goal} kcal</p>
-      </div>
-    </div>
-  );
-};
-
-// Macro Card Component
-const MacroCard = ({ name, value, goal, unit, color, icon: Icon }) => {
-  const percent = Math.min((value / goal) * 100, 100);
-  
-  return (
-    <motion.div 
-      whileHover={{ scale: 1.05 }}
-      className="bg-white/5 backdrop-blur-lg rounded-xl p-4 border border-white/10"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className={`p-2 rounded-lg bg-gradient-to-br ${color}`}>
-            <Icon className="text-white text-lg" />
-          </div>
-          <span className="text-gray-300 font-medium">{name}</span>
-        </div>
-        <span className="text-white font-bold">{value}{unit}</span>
-      </div>
-      <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${percent}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className={`h-full bg-gradient-to-r ${color} rounded-full`}
-        />
-      </div>
-      <p className="text-xs text-gray-500 mt-2">Goal: {goal}{unit}</p>
-    </motion.div>
-  );
-};
-
-// Recipe Card Component
-const RecipeCard = ({ recipe, index }) => (
-  <motion.div
-    initial={{ opacity: 0, x: -20 }}
-    animate={{ opacity: 1, x: 0 }}
-    transition={{ delay: index * 0.1 }}
-    whileHover={{ scale: 1.02, x: 10 }}
-    className="bg-gradient-to-r from-white/5 to-white/10 backdrop-blur-lg rounded-xl p-4 border border-white/10 cursor-pointer group"
-  >
-    <div className="flex items-start gap-4">
-      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center flex-shrink-0">
-        <GiCookingPot className="text-2xl text-white" />
-      </div>
-      <div className="flex-1">
-        <h4 className="text-white font-semibold group-hover:text-emerald-400 transition-colors">{recipe.name}</h4>
-        <p className="text-gray-400 text-sm mt-1">{recipe.calories} kcal • {recipe.time}</p>
-        <div className="flex gap-2 mt-2">
-          {recipe.tags.map((tag, i) => (
-            <span key={i} className="text-xs px-2 py-1 rounded-full bg-white/10 text-gray-300">{tag}</span>
-          ))}
-        </div>
-      </div>
-      <FiChevronRight className="text-gray-500 group-hover:text-white transition-colors text-xl" />
-    </div>
-  </motion.div>
-);
-
-// Meal Plan Card
-const MealPlanCard = ({ meal, isActive, onClick }) => {
-  const Icon = meal.icon;
-  
-  return (
-    <motion.div
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className={`relative overflow-hidden rounded-2xl p-5 cursor-pointer transition-all duration-300
-        ${isActive ? 'bg-gradient-to-br ' + meal.color + ' shadow-lg' : 'bg-white/5 hover:bg-white/10'}`}
-    >
-      <div className="flex items-center gap-4">
-        <div className={`p-3 rounded-xl ${isActive ? 'bg-white/20' : 'bg-white/10'}`}>
-          <Icon className={`text-2xl ${isActive ? 'text-white' : 'text-gray-400'}`} />
-        </div>
-        <div>
-          <h3 className={`font-bold ${isActive ? 'text-white' : 'text-gray-300'}`}>{meal.name}</h3>
-          <p className={`text-sm ${isActive ? 'text-white/80' : 'text-gray-500'}`}>{meal.time}</p>
-        </div>
-      </div>
-      {isActive && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-4 pt-4 border-t border-white/20"
-        >
-          <p className="text-white/90 text-sm">Click to view meal suggestions</p>
-        </motion.div>
-      )}
-    </motion.div>
-  );
-};
 
 // Meal Plan Display Component - Formats AI-generated content beautifully
 const MealPlanDisplay = ({ content }) => {
@@ -437,20 +245,10 @@ export default function DietaryRecommendations() {
   const [selectedDiet, setSelectedDiet] = useState("balanced");
   const [selectedConditions, setSelectedConditions] = useState([]);
   const [selectedAllergies, setSelectedAllergies] = useState([]);
-  const [activeMeal, setActiveMeal] = useState("breakfast");
+
   
-  // Trackers State
-  const [waterGlasses, setWaterGlasses] = useState(4);
-  const [caloriesConsumed, setCaloriesConsumed] = useState(1450);
+  // Calorie Goal State
   const [calorieGoal, setCalorieGoal] = useState(2000);
-  
-  // Macro Goals
-  const [macros, setMacros] = useState({
-    protein: { value: 85, goal: 120 },
-    carbs: { value: 180, goal: 250 },
-    fats: { value: 55, goal: 65 },
-    fiber: { value: 18, goal: 30 },
-  });
   
   // Form State
   const [ingredients, setIngredients] = useState("");
@@ -464,6 +262,21 @@ export default function DietaryRecommendations() {
   const [recipes, setRecipes] = useState([]);
   const [activeTab, setActiveTab] = useState("planner");
   
+  // Recipe Finder State
+  const [recipeResults, setRecipeResults] = useState([]);
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState(false);
+  const [expandedRecipe, setExpandedRecipe] = useState(null);
+  const [recipeIngredientTags, setRecipeIngredientTags] = useState([]);
+  const [recipeIngredientInput, setRecipeIngredientInput] = useState("");
+  const [recipeFilters, setRecipeFilters] = useState({
+    mealType: "any",
+    cookingTime: "any",
+    difficulty: "any",
+  });
+  const [recipeError, setRecipeError] = useState(null);
+  
+
+  
   // History State  
   const [savedPlans, setSavedPlans] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -471,14 +284,6 @@ export default function DietaryRecommendations() {
   
   // Export State
   const [isExporting, setIsExporting] = useState(false);
-  
-  // Sample Recipes (would come from API)
-  const sampleRecipes = [
-    { name: "Grilled Salmon Bowl", calories: 450, time: "25 min", tags: ["High Protein", "Omega-3"] },
-    { name: "Quinoa Veggie Stir-fry", calories: 380, time: "20 min", tags: ["Vegan", "Fiber-rich"] },
-    { name: "Greek Yogurt Parfait", calories: 280, time: "5 min", tags: ["Quick", "Probiotic"] },
-    { name: "Chicken Caesar Salad", calories: 420, time: "15 min", tags: ["Low Carb", "Classic"] },
-  ];
   
   // Get user email from Clerk
   const getUserEmail = useCallback(() => {
@@ -513,7 +318,6 @@ export default function DietaryRecommendations() {
     if (isSignedIn) {
       loadUserPreferences();
       loadSavedPlans();
-      loadTodayTracking();
     }
   }, [isSignedIn]);
   
@@ -586,73 +390,7 @@ export default function DietaryRecommendations() {
     }
   };
   
-  // Load today's tracking data
-  const loadTodayTracking = async () => {
-    const userEmail = getUserEmail();
-    if (!userEmail) return;
-    
-    try {
-      const headers = await getAuthHeaders();
-      const today = new Date().toISOString().split('T')[0];
-      const response = await axios.get(
-        `${BACKEND_URL}/diet/tracking?date=${today}&user_email=${encodeURIComponent(userEmail)}`, 
-        { headers }
-      );
-      const tracking = response.data?.tracking;
-      if (tracking) {
-        setWaterGlasses(tracking.water_glasses || 0);
-        setCaloriesConsumed(tracking.calories_consumed || 0);
-        setMacros({
-          protein: { value: tracking.protein_g || 0, goal: 120 },
-          carbs: { value: tracking.carbs_g || 0, goal: 250 },
-          fats: { value: tracking.fats_g || 0, goal: 65 },
-          fiber: { value: tracking.fiber_g || 0, goal: 30 },
-        });
-      }
-    } catch (error) {
-      console.error("Error loading tracking:", error);
-    }
-  };
-  
-  // Save tracking data
-  const saveTracking = async (updates = {}) => {
-    const userEmail = getUserEmail();
-    if (!userEmail) return;
-    
-    try {
-      const headers = await getAuthHeaders();
-      const today = new Date().toISOString().split('T')[0];
-      await axios.post(`${BACKEND_URL}/diet/tracking`, {
-        user_email: userEmail,
-        date: today,
-        water_glasses: updates.water_glasses ?? waterGlasses,
-        calories_consumed: updates.calories_consumed ?? caloriesConsumed,
-        protein_g: updates.protein_g ?? macros.protein.value,
-        carbs_g: updates.carbs_g ?? macros.carbs.value,
-        fats_g: updates.fats_g ?? macros.fats.value,
-        fiber_g: updates.fiber_g ?? macros.fiber.value,
-      }, { headers });
-    } catch (error) {
-      console.error("Error saving tracking:", error);
-    }
-  };
-  
-  // Update water and save
-  const updateWater = (newValue) => {
-    setWaterGlasses(newValue);
-    if (isSignedIn) {
-      saveTracking({ water_glasses: newValue });
-    }
-  };
-  
-  // Update calories and save
-  const updateCalories = (newValue) => {
-    setCaloriesConsumed(newValue);
-    if (isSignedIn) {
-      saveTracking({ calories_consumed: newValue });
-    }
-  };
-  
+
   // Toggle Health Condition
   const toggleCondition = (conditionId) => {
     setSelectedConditions(prev => 
@@ -720,44 +458,98 @@ export default function DietaryRecommendations() {
     }
   };
   
-  // Generate Recipe Suggestions (using Gemini via backend)
-  const generateRecipes = async () => {
-    if (!ingredients.trim()) {
-      setRecipes(sampleRecipes);
+  // Generate Recipe Suggestions (using AI via backend)
+  const generateRecipes = async (categoryOverride = null) => {
+    const ingredientText = recipeIngredientTags.length > 0 
+      ? recipeIngredientTags.join(", ") 
+      : ingredients.trim();
+    
+    if (!ingredientText && !categoryOverride) {
+      setRecipeError("Please add at least one ingredient or select a category.");
       return;
     }
     
-    setIsLoading(true);
+    setIsLoadingRecipes(true);
+    setRecipeError(null);
+    setExpandedRecipe(null);
     const userEmail = getUserEmail();
 
     try {
       const headers = await getAuthHeaders();
       const response = await axios.post(`${BACKEND_URL}/diet/generate-recipes`, {
         user_email: userEmail,
-        ingredients: ingredients,
+        ingredients: ingredientText,
         diet_type: selectedDiet,
         allergies: selectedAllergies,
-        cooking_time: cookingTime,
-        cuisine_preference: cuisinePreference
+        cooking_time: recipeFilters.cookingTime !== "any" ? recipeFilters.cookingTime : cookingTime,
+        cuisine_preference: cuisinePreference,
+        meal_type: recipeFilters.mealType,
+        difficulty: recipeFilters.difficulty,
+        category: categoryOverride || "",
       }, { headers });
       
-      if (response.data?.success) {
-        setMealPlan(response.data.recipes);
-        setCurrentPlanId(response.data.plan_id);
+      if (response.data?.success && Array.isArray(response.data.recipes)) {
+        setRecipeResults(response.data.recipes);
+        if (response.data.plan_id) {
+          setCurrentPlanId(response.data.plan_id);
+        }
+        if (response.data.raw_content) {
+          setMealPlan(response.data.raw_content);
+        }
         if (isSignedIn) {
           loadSavedPlans();
         }
       } else {
         throw new Error(response.data?.error || "Failed to generate recipes");
       }
-      setActiveTab("results");
     } catch (error) {
       console.error("Error generating recipes:", error);
-      setRecipes(sampleRecipes);
+      const errorMessage = error.response?.data?.error || error.message || "Failed to generate recipes";
+      setRecipeError(errorMessage);
+      setRecipeResults([]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingRecipes(false);
     }
   };
+
+  // Add ingredient tag
+  const addIngredientTag = (value) => {
+    const trimmed = (value || recipeIngredientInput).trim().toLowerCase();
+    if (trimmed && !recipeIngredientTags.includes(trimmed)) {
+      setRecipeIngredientTags(prev => [...prev, trimmed]);
+    }
+    setRecipeIngredientInput("");
+  };
+
+  // Remove ingredient tag
+  const removeIngredientTag = (tag) => {
+    setRecipeIngredientTags(prev => prev.filter(t => t !== tag));
+  };
+
+  // Handle ingredient input keydown
+  const handleIngredientKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addIngredientTag();
+    } else if (e.key === "Backspace" && !recipeIngredientInput && recipeIngredientTags.length > 0) {
+      setRecipeIngredientTags(prev => prev.slice(0, -1));
+    }
+  };
+
+  // Filter recipe results client-side
+  const filteredRecipes = recipeResults.filter(recipe => {
+    if (recipeFilters.mealType !== "any" && recipe.mealType?.toLowerCase() !== recipeFilters.mealType.toLowerCase()) {
+      return false;
+    }
+    if (recipeFilters.difficulty !== "any" && recipe.difficulty?.toLowerCase() !== recipeFilters.difficulty.toLowerCase()) {
+      return false;
+    }
+    if (recipeFilters.cookingTime !== "any") {
+      const maxTime = parseInt(recipeFilters.cookingTime);
+      if (recipe.cookingTime > maxTime) return false;
+    }
+    return true;
+  });
   
   // Helper function to download blob
   const downloadBlob = (blob, filename) => {
@@ -913,7 +705,6 @@ export default function DietaryRecommendations() {
           <div className="inline-flex bg-white/5 rounded-2xl p-1 backdrop-blur-lg border border-white/10">
             {[
               { id: "planner", label: "Meal Planner", icon: GiMeal },
-              { id: "tracker", label: "Daily Tracker", icon: FiTarget },
               { id: "recipes", label: "Recipe Finder", icon: FiBookOpen },
               { id: "history", label: "History", icon: MdHistory },
               { id: "results", label: "Current Plan", icon: FiStar },
@@ -1160,147 +951,6 @@ export default function DietaryRecommendations() {
             </motion.div>
           )}
 
-          {/* Daily Tracker Tab */}
-          {activeTab === "tracker" && (
-            <motion.div
-              key="tracker"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="space-y-8"
-            >
-              {/* Calorie & Water Tracking */}
-              <div className="grid md:grid-cols-2 gap-6">
-                <GlassCard className="p-8">
-                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <FiZap className="text-emerald-400" />
-                    Calorie Intake
-                  </h2>
-                  <CalorieTracker consumed={caloriesConsumed} goal={calorieGoal} />
-                  
-                  <div className="mt-6 flex gap-3 justify-center">
-                    <motion.button
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => updateCalories(Math.max(0, caloriesConsumed - 100))}
-                      className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors text-sm"
-                    >
-                      -100 kcal
-                    </motion.button>
-                    <motion.button
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => updateCalories(caloriesConsumed + 100)}
-                      className="px-4 py-2 rounded-xl bg-emerald-500/30 hover:bg-emerald-500/50 transition-colors text-sm"
-                    >
-                      +100 kcal
-                    </motion.button>
-                  </div>
-                </GlassCard>
-
-                <GlassCard className="p-8">
-                  <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <FiDroplet className="text-blue-400" />
-                    Water Intake
-                  </h2>
-                  <WaterTracker glasses={waterGlasses} setGlasses={updateWater} />
-                </GlassCard>
-              </div>
-
-              {/* Macro Tracking */}
-              <GlassCard className="p-6">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <FiTrendingUp className="text-purple-400" />
-                  Macronutrients
-                </h2>
-                
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <MacroCard 
-                    name="Protein" 
-                    value={macros.protein.value} 
-                    goal={macros.protein.goal} 
-                    unit="g" 
-                    color="from-blue-500 to-cyan-500"
-                    icon={GiMuscleUp}
-                  />
-                  <MacroCard 
-                    name="Carbs" 
-                    value={macros.carbs.value} 
-                    goal={macros.carbs.goal} 
-                    unit="g" 
-                    color="from-orange-500 to-yellow-500"
-                    icon={FiZap}
-                  />
-                  <MacroCard 
-                    name="Fats" 
-                    value={macros.fats.value} 
-                    goal={macros.fats.goal} 
-                    unit="g" 
-                    color="from-pink-500 to-rose-500"
-                    icon={FiHeart}
-                  />
-                  <MacroCard 
-                    name="Fiber" 
-                    value={macros.fiber.value} 
-                    goal={macros.fiber.goal} 
-                    unit="g" 
-                    color="from-green-500 to-emerald-500"
-                    icon={GiFruitBowl}
-                  />
-                </div>
-              </GlassCard>
-
-              {/* Meal Times */}
-              <GlassCard className="p-6">
-                <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                  <FiClock className="text-yellow-400" />
-                  Today's Meals
-                </h2>
-                
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {mealTimes.map((meal) => (
-                    <MealPlanCard
-                      key={meal.id}
-                      meal={meal}
-                      isActive={activeMeal === meal.id}
-                      onClick={() => setActiveMeal(meal.id)}
-                    />
-                  ))}
-                </div>
-              </GlassCard>
-
-              {/* Quick Add Meal */}
-              <GlassCard className="p-6">
-                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <FiPlus className="text-emerald-400" />
-                  Quick Add Meal
-                </h2>
-                
-                <div className="grid md:grid-cols-4 gap-4">
-                  {[
-                    { name: "Salad", cal: 150, icon: GiFruitBowl },
-                    { name: "Sandwich", cal: 350, icon: MdOutlineRestaurant },
-                    { name: "Smoothie", cal: 200, icon: FiCoffee },
-                    { name: "Snack Bar", cal: 180, icon: GiMeal },
-                  ].map((item, index) => (
-                    <motion.button
-                      key={item.name}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => updateCalories(caloriesConsumed + item.cal)}
-                      className="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-center"
-                    >
-                      <item.icon className="text-2xl mx-auto mb-2 text-gray-400" />
-                      <p className="text-white font-medium">{item.name}</p>
-                      <p className="text-gray-500 text-sm">+{item.cal} kcal</p>
-                    </motion.button>
-                  ))}
-                </div>
-              </GlassCard>
-            </motion.div>
-          )}
-
           {/* Recipe Finder Tab */}
           {activeTab === "recipes" && (
             <motion.div
@@ -1314,36 +964,71 @@ export default function DietaryRecommendations() {
                 {/* Recipe Search */}
                 <div className="lg:col-span-2 space-y-6">
                   <GlassCard className="p-6">
-                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
                       <GiCookingPot className="text-orange-400" />
                       Find Recipes by Ingredients
                     </h2>
                     <p className="text-gray-400 text-sm mb-4">
-                      Enter the ingredients you have, and we'll suggest delicious recipes
+                      Add the ingredients you have and we&apos;ll suggest delicious recipes
                     </p>
                     
+                    {/* Ingredient Tags */}
+                    <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
+                      {recipeIngredientTags.map((tag) => (
+                        <motion.span
+                          key={tag}
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.8, opacity: 0 }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-300 text-sm"
+                        >
+                          {tag}
+                          <button onClick={() => removeIngredientTag(tag)} className="hover:text-white transition-colors">
+                            <FiMinus className="text-xs" />
+                          </button>
+                        </motion.span>
+                      ))}
+                    </div>
+
+                    {/* Input */}
                     <div className="relative">
                       <input
                         type="text"
-                        value={ingredients}
-                        onChange={(e) => setIngredients(e.target.value)}
-                        placeholder="e.g., chicken, tomatoes, garlic, olive oil..."
-                        className="w-full p-4 pr-12 bg-white/5 border border-white/10 rounded-xl text-white 
+                        value={recipeIngredientInput}
+                        onChange={(e) => setRecipeIngredientInput(e.target.value)}
+                        onKeyDown={handleIngredientKeyDown}
+                        placeholder={recipeIngredientTags.length > 0 ? "Add more ingredients..." : "e.g., chicken, tomatoes, garlic, olive oil..."}
+                        className="w-full p-4 pr-24 bg-white/5 border border-white/10 rounded-xl text-white 
                           placeholder-gray-500 focus:border-orange-500 focus:outline-none transition-colors"
                       />
-                      <MdOutlineFoodBank className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl text-gray-500" />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                        {recipeIngredientInput.trim() && (
+                          <motion.button
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => addIngredientTag()}
+                            className="p-2 rounded-lg bg-orange-500/30 hover:bg-orange-500/50 transition-colors"
+                          >
+                            <FiPlus className="text-orange-300" />
+                          </motion.button>
+                        )}
+                        <MdOutlineFoodBank className="text-2xl text-gray-500 p-1" />
+                      </div>
                     </div>
+
+                    <p className="text-gray-500 text-xs mt-2">Press Enter or comma to add each ingredient</p>
                     
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={generateRecipes}
-                      disabled={isLoading}
-                      className="mt-4 w-full py-3 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 
+                      onClick={() => generateRecipes()}
+                      disabled={isLoadingRecipes}
+                      className="mt-4 w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 
                         text-white font-bold shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 
                         transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      {isLoading ? (
+                      {isLoadingRecipes ? (
                         <>
                           <FiRefreshCw className="animate-spin" />
                           Finding Recipes...
@@ -1357,49 +1042,300 @@ export default function DietaryRecommendations() {
                     </motion.button>
                   </GlassCard>
 
+                  {/* Error */}
+                  {recipeError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm flex items-start gap-3"
+                    >
+                      <FiActivity className="text-red-400 text-lg flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold mb-1">Could not fetch recipes</p>
+                        <p className="text-red-400/80">{recipeError}</p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Loading Skeleton */}
+                  {isLoadingRecipes && (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="bg-white/5 rounded-xl p-5 border border-white/10 animate-pulse">
+                          <div className="flex gap-4">
+                            <div className="w-20 h-20 rounded-xl bg-white/10" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-5 bg-white/10 rounded w-2/3" />
+                              <div className="h-4 bg-white/10 rounded w-1/3" />
+                              <div className="flex gap-2">
+                                <div className="h-6 bg-white/10 rounded-full w-20" />
+                                <div className="h-6 bg-white/10 rounded-full w-16" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Recipe Results */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-300">Suggested Recipes</h3>
-                    {sampleRecipes.map((recipe, index) => (
-                      <RecipeCard key={index} recipe={recipe} index={index} />
-                    ))}
-                  </div>
+                  {!isLoadingRecipes && filteredRecipes.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-300 flex items-center gap-2">
+                          <MdOutlineRestaurant className="text-orange-400" />
+                          {filteredRecipes.length} Recipe{filteredRecipes.length !== 1 ? "s" : ""} Found
+                        </h3>
+                        {recipeResults.length !== filteredRecipes.length && (
+                          <span className="text-gray-500 text-sm">
+                            {recipeResults.length - filteredRecipes.length} filtered out
+                          </span>
+                        )}
+                      </div>
+
+                      {filteredRecipes.map((recipe, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.08 }}
+                          className="bg-gradient-to-r from-white/5 to-white/[0.08] backdrop-blur-lg rounded-xl border border-white/10 
+                            overflow-hidden hover:border-orange-500/30 transition-all group"
+                        >
+                          {/* Card Header */}
+                          <div
+                            className="p-5 cursor-pointer"
+                            onClick={() => setExpandedRecipe(expandedRecipe === index ? null : index)}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-500/20">
+                                <GiCookingPot className="text-2xl text-white" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-white font-semibold text-lg group-hover:text-orange-400 transition-colors truncate">
+                                  {recipe.name}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-gray-400 text-sm">
+                                  <span className="flex items-center gap-1">
+                                    <FiZap className="text-emerald-400" /> {recipe.calories} kcal
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <FiClock className="text-blue-400" /> {recipe.cookingTime} min
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <GiMuscleUp className="text-purple-400" /> {recipe.servings} servings
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                    recipe.difficulty === "Easy" ? "bg-green-500/20 text-green-400" :
+                                    recipe.difficulty === "Hard" ? "bg-red-500/20 text-red-400" :
+                                    "bg-yellow-500/20 text-yellow-400"
+                                  }`}>
+                                    {recipe.difficulty}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {(recipe.tags || []).map((tag, i) => (
+                                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-300 border border-white/5">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <motion.div
+                                animate={{ rotate: expandedRecipe === index ? 90 : 0 }}
+                                className="text-gray-500 group-hover:text-white transition-colors flex-shrink-0 mt-2"
+                              >
+                                <FiChevronRight className="text-xl" />
+                              </motion.div>
+                            </div>
+
+                            {/* Compact Macros Bar */}
+                            <div className="flex gap-4 mt-3 pt-3 border-t border-white/5">
+                              {[
+                                { label: "Protein", val: recipe.protein, color: "text-blue-400", bg: "bg-blue-500" },
+                                { label: "Carbs", val: recipe.carbs, color: "text-orange-400", bg: "bg-orange-500" },
+                                { label: "Fats", val: recipe.fats, color: "text-pink-400", bg: "bg-pink-500" },
+                                { label: "Fiber", val: recipe.fiber, color: "text-green-400", bg: "bg-green-500" },
+                              ].map((m) => (
+                                <div key={m.label} className="flex-1">
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-gray-500">{m.label}</span>
+                                    <span className={m.color}>{m.val}g</span>
+                                  </div>
+                                  <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                                    <div className={`h-full ${m.bg} rounded-full`} style={{ width: `${Math.min((m.val / 60) * 100, 100)}%` }} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Expanded Detail */}
+                          <AnimatePresence>
+                            {expandedRecipe === index && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.3 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-5 pb-5 space-y-5 border-t border-white/10">
+                                  {/* Ingredients */}
+                                  <div className="pt-4">
+                                    <h5 className="text-white font-semibold mb-3 flex items-center gap-2">
+                                      <FiList className="text-orange-400" />
+                                      Ingredients
+                                    </h5>
+                                    <div className="grid sm:grid-cols-2 gap-2">
+                                      {(recipe.ingredients || []).map((ing, i) => (
+                                        <div key={i} className="flex items-start gap-2 text-gray-300 text-sm">
+                                          <span className="text-emerald-400 mt-0.5">•</span>
+                                          <span>{ing}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Instructions */}
+                                  <div>
+                                    <h5 className="text-white font-semibold mb-3 flex items-center gap-2">
+                                      <FiBookOpen className="text-blue-400" />
+                                      Instructions
+                                    </h5>
+                                    <ol className="space-y-2">
+                                      {(recipe.instructions || []).map((step, i) => (
+                                        <li key={i} className="flex items-start gap-3 text-sm">
+                                          <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 
+                                            flex items-center justify-center text-white text-xs font-bold">
+                                            {i + 1}
+                                          </span>
+                                          <span className="text-gray-300 leading-relaxed pt-0.5">{step}</span>
+                                        </li>
+                                      ))}
+                                    </ol>
+                                  </div>
+
+                                  {/* Nutrition Benefits */}
+                                  {recipe.nutritionBenefits && (
+                                    <div className="bg-emerald-500/10 rounded-lg p-3 border border-emerald-500/20">
+                                      <h5 className="text-emerald-400 font-semibold text-sm mb-1 flex items-center gap-2">
+                                        <FiHeart /> Nutrition Benefits
+                                      </h5>
+                                      <p className="text-gray-300 text-sm leading-relaxed">{recipe.nutritionBenefits}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {!isLoadingRecipes && recipeResults.length === 0 && !recipeError && (
+                    <div className="text-center py-16">
+                      <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-orange-500/10 to-red-500/10 
+                        flex items-center justify-center border border-white/5">
+                        <GiCookingPot className="text-4xl text-orange-400/60" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-white mb-2">Ready to Cook?</h3>
+                      <p className="text-gray-400 max-w-md mx-auto">
+                        Add your available ingredients above and click Find Recipes to get AI-powered recipe suggestions tailored to your diet.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* No filtered results */}
+                  {!isLoadingRecipes && recipeResults.length > 0 && filteredRecipes.length === 0 && (
+                    <div className="text-center py-10">
+                      <FiActivity className="text-3xl text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400">No recipes match your current filters. Try adjusting them.</p>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setRecipeFilters({ mealType: "any", cookingTime: "any", difficulty: "any" })}
+                        className="mt-3 px-4 py-2 text-sm rounded-lg bg-white/10 text-gray-300 hover:bg-white/20"
+                      >
+                        Clear Filters
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Recipe Filters */}
+                {/* Sidebar — Filters & Categories */}
                 <div className="space-y-6">
+                  {/* Active Filters Summary */}
+                  {(recipeFilters.mealType !== "any" || recipeFilters.cookingTime !== "any" || recipeFilters.difficulty !== "any") && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-between bg-white/5 rounded-xl p-3 border border-white/10"
+                    >
+                      <span className="text-gray-400 text-sm">
+                        Filters active
+                      </span>
+                      <button
+                        onClick={() => setRecipeFilters({ mealType: "any", cookingTime: "any", difficulty: "any" })}
+                        className="text-orange-400 text-sm font-medium hover:text-orange-300 transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    </motion.div>
+                  )}
+
                   <GlassCard className="p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                       <FiActivity className="text-purple-400" />
                       Recipe Filters
                     </h3>
                     
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div>
                         <label className="text-gray-400 text-sm mb-2 block">Meal Type</label>
                         <div className="grid grid-cols-2 gap-2">
-                          {["Breakfast", "Lunch", "Dinner", "Snack"].map((type) => (
+                          {[
+                            { label: "All", value: "any" },
+                            { label: "Breakfast", value: "Breakfast" },
+                            { label: "Lunch", value: "Lunch" },
+                            { label: "Dinner", value: "Dinner" },
+                            { label: "Snack", value: "Snack" },
+                          ].map((type) => (
                             <button
-                              key={type}
-                              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 
-                                text-gray-400 hover:text-white text-sm transition-all"
+                              key={type.value}
+                              onClick={() => setRecipeFilters(f => ({ ...f, mealType: type.value }))}
+                              className={`p-2 rounded-lg border text-sm transition-all ${
+                                recipeFilters.mealType === type.value
+                                  ? "bg-orange-500/20 border-orange-500/50 text-orange-300"
+                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                              }`}
                             >
-                              {type}
+                              {type.label}
                             </button>
                           ))}
                         </div>
                       </div>
                       
                       <div>
-                        <label className="text-gray-400 text-sm mb-2 block">Cooking Time</label>
+                        <label className="text-gray-400 text-sm mb-2 block">Max Cooking Time</label>
                         <div className="flex gap-2">
-                          {["< 15m", "< 30m", "< 1h"].map((time) => (
+                          {[
+                            { label: "Any", value: "any" },
+                            { label: "≤ 15m", value: "15" },
+                            { label: "≤ 30m", value: "30" },
+                            { label: "≤ 60m", value: "60" },
+                          ].map((time) => (
                             <button
-                              key={time}
-                              className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 
-                                text-gray-400 hover:text-white text-sm transition-all"
+                              key={time.value}
+                              onClick={() => setRecipeFilters(f => ({ ...f, cookingTime: time.value }))}
+                              className={`flex-1 p-2 rounded-lg border text-sm transition-all ${
+                                recipeFilters.cookingTime === time.value
+                                  ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                              }`}
                             >
-                              {time}
+                              {time.label}
                             </button>
                           ))}
                         </div>
@@ -1408,13 +1344,22 @@ export default function DietaryRecommendations() {
                       <div>
                         <label className="text-gray-400 text-sm mb-2 block">Difficulty</label>
                         <div className="flex gap-2">
-                          {["Easy", "Medium", "Hard"].map((diff) => (
+                          {[
+                            { label: "Any", value: "any" },
+                            { label: "Easy", value: "Easy" },
+                            { label: "Medium", value: "Medium" },
+                            { label: "Hard", value: "Hard" },
+                          ].map((diff) => (
                             <button
-                              key={diff}
-                              className="flex-1 p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 
-                                text-gray-400 hover:text-white text-sm transition-all"
+                              key={diff.value}
+                              onClick={() => setRecipeFilters(f => ({ ...f, difficulty: diff.value }))}
+                              className={`flex-1 p-2 rounded-lg border text-sm transition-all ${
+                                recipeFilters.difficulty === diff.value
+                                  ? "bg-purple-500/20 border-purple-500/50 text-purple-300"
+                                  : "bg-white/5 hover:bg-white/10 border-white/10 text-gray-400 hover:text-white"
+                              }`}
                             >
-                              {diff}
+                              {diff.label}
                             </button>
                           ))}
                         </div>
@@ -1422,31 +1367,49 @@ export default function DietaryRecommendations() {
                     </div>
                   </GlassCard>
 
+                  {/* Quick Categories */}
                   <GlassCard className="p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                       <FiAward className="text-yellow-400" />
-                      Popular Categories
+                      Quick Categories
                     </h3>
+                    <p className="text-gray-500 text-xs mb-3">Click a category to generate recipes</p>
                     
                     <div className="space-y-2">
                       {[
-                        { name: "High Protein", count: 245, color: "text-blue-400" },
-                        { name: "Low Carb", count: 189, color: "text-green-400" },
-                        { name: "Quick & Easy", count: 312, color: "text-orange-400" },
-                        { name: "Vegetarian", count: 156, color: "text-emerald-400" },
-                        { name: "Heart Healthy", count: 98, color: "text-pink-400" },
-                      ].map((cat) => (
-                        <motion.button
-                          key={cat.name}
-                          whileHover={{ x: 5 }}
-                          className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors"
-                        >
-                          <span className={`font-medium ${cat.color}`}>{cat.name}</span>
-                          <span className="text-gray-500 text-sm">{cat.count} recipes</span>
-                        </motion.button>
-                      ))}
+                        { name: "High Protein", icon: GiMuscleUp, color: "text-blue-400", gradient: "from-blue-500/20 to-cyan-500/10" },
+                        { name: "Low Carb", icon: FiTrendingUp, color: "text-green-400", gradient: "from-green-500/20 to-emerald-500/10" },
+                        { name: "Quick & Easy", icon: FiClock, color: "text-orange-400", gradient: "from-orange-500/20 to-yellow-500/10" },
+                        { name: "Vegetarian", icon: GiFruitBowl, color: "text-emerald-400", gradient: "from-emerald-500/20 to-lime-500/10" },
+                        { name: "Heart Healthy", icon: FiHeart, color: "text-pink-400", gradient: "from-pink-500/20 to-rose-500/10" },
+                        { name: "Meal Prep", icon: GiMeal, color: "text-purple-400", gradient: "from-purple-500/20 to-indigo-500/10" },
+                      ].map((cat) => {
+                        const CatIcon = cat.icon;
+                        return (
+                          <motion.button
+                            key={cat.name}
+                            whileHover={{ x: 5, scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => generateRecipes(cat.name)}
+                            disabled={isLoadingRecipes}
+                            className={`w-full flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r ${cat.gradient} 
+                              border border-white/5 hover:border-white/20 transition-all disabled:opacity-50`}
+                          >
+                            <CatIcon className={`text-lg ${cat.color}`} />
+                            <span className={`font-medium text-sm ${cat.color}`}>{cat.name}</span>
+                            <FiChevronRight className="ml-auto text-gray-600 text-sm" />
+                          </motion.button>
+                        );
+                      })}
                     </div>
                   </GlassCard>
+
+                  {/* Diet Badge */}
+                  <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/5 rounded-xl p-4 border border-emerald-500/20">
+                    <p className="text-emerald-400 text-sm font-semibold mb-1">Active Diet</p>
+                    <p className="text-white font-bold text-lg capitalize">{selectedDiet}</p>
+                    <p className="text-gray-400 text-xs mt-1">Recipes follow your {selectedDiet} diet preferences</p>
+                  </div>
                 </div>
               </div>
             </motion.div>
