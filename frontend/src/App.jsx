@@ -15,6 +15,8 @@ import DietaryRecommendations from "./pages/DietaryRecommendations";
 import Yoga from "./pages/yoga";
 import Chat from "./pages/Chat";
 import FaceDetectionPage from "./pages/FaceDetectionPage";
+import FitnessDashboard from "./pages/FitnessDashboard";
+import FitnessDataSeeder from "./pages/FitnessDataSeeder";
 const App = () => {
   const router = createBrowserRouter([
     {
@@ -50,6 +52,14 @@ const App = () => {
         {
           path: "/face-detection",
           element: <FaceDetectionPage />,
+        },
+        {
+          path: "/fitness-dashboard",
+          element: <FitnessDashboard />,
+        },
+        {
+          path: "/fitness-data-seeder",
+          element: <FitnessDataSeeder />,
         },
         {
           path: "/chat",
