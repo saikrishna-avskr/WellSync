@@ -99,7 +99,12 @@ export const BentoCard = ({ src, title, description, isComingSoon }) => {
   );
 };
 
-export const BentoMovieCardImage = ({ src, title, description, isComingSoon }) => {
+export const BentoMovieCardImage = ({
+  src,
+  title,
+  description,
+  isComingSoon,
+}) => {
   return (
     <div className="relative size-full h-[600px]">
       <img
@@ -122,7 +127,6 @@ export const BentoMovieCardImage = ({ src, title, description, isComingSoon }) =
     </div>
   );
 };
-
 
 export const BentoCardImage = ({ src, title, description, isComingSoon }) => {
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
@@ -151,15 +155,16 @@ export const BentoCardImage = ({ src, title, description, isComingSoon }) => {
         autoPlay
         className="absolute left-0 top-0 size-full object-cover object-center "
       />
-       <div className="absolute left-0 top-0 size-full bg-black/50 transform rotate-1"></div>
+      <div className="absolute left-0 top-0 size-full bg-black/50 transform rotate-1"></div>
       <div className="relative z-10 flex size-full flex-col justify-between p-5 text-gray-200">
         <div>
-          <h1 className="uppercase md:text-4xl text-2xl font-black font-zentry special-font">{title}</h1>
+          <h1 className="uppercase md:text-4xl text-2xl font-black font-zentry special-font">
+            {title}
+          </h1>
           {description && (
             <p className="mt-3 max-w-64 text-xs md:text-base">{description}</p>
           )}
         </div>
-
       </div>
     </div>
   );
@@ -169,7 +174,7 @@ const Features = () => (
   <section className="bg-black pb-52">
     <div className="container mx-auto px-3 md:px-10">
       <div className="px-5 py-32">
-        <p className="font-circular-web text-lg text-blue-50">
+        <p className="font-circular-web text-2xl md:text-3xl text-blue-50">
           Welcome to MindCare
         </p>
         <p className="max-w-md font-circular-web text-lg text-blue-50 opacity-50">
@@ -178,79 +183,61 @@ const Features = () => (
         </p>
       </div>
 
-      <a href={'https://framevr.io/zenithai'} className="cursor-pointer"> 
-      <BentoTilt className="border-hsla relative mb-7 h-96 w-full overflow-hidden rounded-md md:h-[65vh] ">
-        <BentoCard
-          src="videos/feature-1.mp4"
-          title={
-            <>
-              Medit<b>a</b>t<b>a</b>ion Room
-            </>
-          }
-          description="Embrace the serenity of guided meditation, designed to calm your mind and nurture inner peace."
-          
+      <a href={"https://framevr.io/zenithai"} className="cursor-pointer">
+        <BentoTilt className="border-hsla relative mb-7 h-96 w-full overflow-hidden rounded-md md:h-[65vh] ">
+          <BentoCard
+            src="videos/feature-1.mp4"
+            title={
+              <>
+                Medit<b>a</b>t<b>a</b>ion Room
+              </>
+            }
+            description="Embrace the serenity of guided meditation, designed to calm your mind and nurture inner peace."
           />
-      </BentoTilt>
+        </BentoTilt>
       </a>
-        
-      <div className="grid h-[135vh] w-full grid-cols-2 grid-rows-3 gap-7">
-        <BentoTilt className="bento-tilt_1 row-span-1 md:col-span-1 md:row-span-2">
-      <a href="/face-detection">
-          <BentoCard
-            src="videos/feature-2.mp4"
-            title={
-              <>
-                Reco<b>m</b>mended Songs
-              </>
-            }
-            description="Enjoy songs perfectly suited to your mood, enhancing relaxation and positivity."
-            isComingSoon
+
+      <div className="grid h-[95vh] w-full grid-cols-2 grid-rows-2 gap-7">
+        <BentoTilt className="bento-tilt_1 row-span-1 md:col-span-1">
+          <a href="/face-detection">
+            <BentoCard
+              src="videos/feature-4.mp4"
+              title={
+                <>
+                  Reco<b>m</b>mended Movies
+                </>
+              }
+              description="Get movie recommendations that resonate with your emotional state and uplift your spirit."
             />
-      </a>
+          </a>
         </BentoTilt>
 
-        <BentoTilt className="bento-tilt_1 row-span-1 ms-32 md:col-span-1 md:ms-0">
-        <a href="/face-detection">
-          <BentoCard
-            src="videos/feature-3.mp4"
-            title={
-              <>
-                Reco<b>m</b>mended Movies
-              </>
-            }
-            description="Get movie recommendations that resonate with your emotional state and uplift your spirit."
-            
-            />
-        </a>
-        </BentoTilt>
-
-        <BentoTilt className="bento-tilt_1 me-14 md:col-span-1 md:me-0">
+        <BentoTilt className="bento-tilt_1 md:col-span-1">
           <a href="/games">
-          <BentoCard
-            src="videos/feature-4.mp4"
-            title={
-              <>
-                Reco<b>m</b>mended Ga<b>m</b>es
-              </>
-            }
-            description="Engage in meaningful conversations with an AI companion for emotional support and guidance."
-            isComingSoon
+            <BentoCard
+              src="videos/feature-3.mp4"
+              title={
+                <>
+                  Reco<b>m</b>mended Ga<b>m</b>es
+                </>
+              }
+              description="Engage in meaningful conversations with an AI companion for emotional support and guidance."
             />
-            </a>
+          </a>
         </BentoTilt>
 
         <BentoTilt className="bento-tilt_2">
-          <a href="/face-detection">
-          <div className="flex size-full flex-col justify-between bg-violet-300 p-5">
-            <h1 className="bento-title special-font max-w-64 text-black">
-              Mood<b> Detection</b>
-            </h1>
-            <p className="text-black">
-              Gamify your emotional well-being journey with mood tracking and
-              calendar insights.
-            </p>
-            <TiLocationArrow className="m-5 scale-[5] self-end" />
-          </div>
+          <a href="/profile">
+            <div className="flex size-full flex-col justify-between bg-violet-300 p-5">
+              <h1 className="bento-title special-font max-w-64 text-black">
+                Mood<b> Tracking</b>
+              </h1>
+              <p className="text-black">
+                Track your mood patterns, build healthy habits, and view your
+                emotional progress over time.
+              </p>
+              <TiLocationArrow className="m-5 scale-[5] self-end" />
+            </div>
           </a>
         </BentoTilt>
 

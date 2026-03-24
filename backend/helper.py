@@ -18,7 +18,7 @@ from pathlib import Path
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import google.generativeai as genai
+from google import genai
 import uuid
 from pinecone import Pinecone, ServerlessSpec
 from datetime import datetime
@@ -27,7 +27,8 @@ import threading
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv()
-genai.configure(api_key=os.getenv("Google_API_Key"))
+
+genai_client = genai.Client()
 
 # Pinecone configuration (optional). If not provided, code will fall back to file-based behavior.
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -84,7 +85,7 @@ def init_pinecone_if_needed():
     return get_pinecone_index()
 
 # Empathetic system prompt for the mental health chatbot
-EMPATHETIC_SYSTEM_TEMPLATE = """You are WellSync, a warm, caring, and empathetic mental health companion. Your role is to provide emotional support and be a compassionate listener.
+EMPATHETIC_SYSTEM_TEMPLATE = """You are SereniFit, a warm, caring, and empathetic mental health companion. Your role is to provide emotional support and be a compassionate listener.
 
 IMPORTANT RESTRICTIONS - YOU MUST FOLLOW THESE:
 - NEVER provide medical diagnoses or suggest you know what condition someone has
@@ -104,10 +105,11 @@ WHAT YOU CAN DO:
 Guidelines for your responses:
 - Always respond with warmth, empathy, and genuine care
 - Use a gentle, supportive, and non-judgmental tone
-- NEVER assume the user's emotional state - always ask how they're feeling
+- NEVER assume the user's emotional state
 - Do NOT assume the user is happy, smiling, or in a good mood just from a simple greeting like "hi"
 - Acknowledge and validate the user's feelings ONLY after they share them
-- Ask open-ended questions to understand how they're truly feeling
+- For clear task-based requests (math, coding, writing, study help, factual questions), answer directly and practically first
+- Do NOT force emotional check-in questions for task-based requests unless the user signals emotional distress
 - Use phrases like "I hear you", "That sounds really difficult", "It's completely understandable to feel that way" - but only after they share their feelings
 - Offer encouragement and hope without being dismissive of their struggles
 - If they share something difficult, express that you're there for them
@@ -115,11 +117,22 @@ Guidelines for your responses:
 - Use the context provided to give relevant, personalized responses
 - You're a supportive friend who listens - not a therapist or doctor
 
+When users indicate they want to end or pause the conversation:
+- If the user says things like "thanks", "thank you", "I'm good", "no I'm good", "bye", "see you", or "that's all", respond with a brief, polite closing
+- Do NOT reopen the conversation with extra emotional probing or new open-ended questions
+- Preferred style: short closing such as "You're welcome — glad I could help. Reach out anytime."
+- If the user specifically says "bye" or "see you", prefer an even shorter sign-off like "Take care 👋" or "See you — take care."
+
 When greeting users (for simple greetings like "hi", "hello", "hey"):
 - Respond warmly but neutrally: "Hello! I'm here for you. How are you feeling today?" or "Hi there! It's nice to meet you. What's on your mind?"
 - Do NOT say things like "I can see you're happy" or assume any emotion
-- Always invite them to share how they're actually feeling
+- You may invite them to share how they feel, but keep it optional and brief
 - Show genuine interest in their wellbeing without making assumptions
+
+When users ask for help solving something:
+- Provide the solution first, then a short explanation of steps
+- Ask a follow-up question only to clarify missing information needed to solve the task
+- Example: if asked "what is 1+1" or "help me with my math", answer the math directly instead of switching to emotional probing
 
 Use the following context to help inform your response:
 {context}
@@ -128,9 +141,11 @@ Current conversation:
 {chat_history}
 
 User: {question}
-WellSync:"""
+SereniFit:"""
 
-QUESTION_PROMPT_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question that captures the emotional context.
+QUESTION_PROMPT_TEMPLATE = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question that preserves the user's actual intent.
+
+If the user is clearly ending the conversation (for example: "thanks", "I'm good", "bye"), keep that intent as a brief closing intent and do not convert it into an emotional check-in.
 
 Chat History:
 {chat_history}
@@ -415,6 +430,55 @@ def delete_session(user_id: str, session_id: str):
         print(f"Failed to delete session: {e}")
         return False
 
+
+def delete_all_user_conversations(user_id: str):
+    """Delete all conversation vectors for a user from Pinecone."""
+    index = get_pinecone_index()
+    if index is None:
+        return {
+            "success": False,
+            "deleted_count": 0,
+            "message": "Pinecone not configured",
+        }
+
+    deleted_count = 0
+
+    try:
+        dummy_vec = embed_documents_safe(["delete all user conversations"])[0]
+
+        while True:
+            results = index.query(
+                vector=dummy_vec,
+                top_k=1000,
+                include_metadata=True,
+                filter={
+                    "user_id": {"$eq": user_id},
+                    "type": {"$eq": "conversation"},
+                },
+            )
+
+            ids_to_delete = [match.id for match in results.matches]
+            if not ids_to_delete:
+                break
+
+            index.delete(ids=ids_to_delete)
+            deleted_count += len(ids_to_delete)
+
+            if len(ids_to_delete) < 1000:
+                break
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+        }
+    except Exception as e:
+        print(f"Failed to delete all user conversations: {e}")
+        return {
+            "success": False,
+            "deleted_count": deleted_count,
+            "message": str(e),
+        }
+
 def get_relevant_context(user_id: str, query: str, limit: int = 5):
     """
     Get relevant past conversation context for a query using semantic search.
@@ -575,17 +639,13 @@ generation_config = {
     "max_output_tokens": 4096,
 }
 
-gemini_model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    generation_config=generation_config,
-)
-
 prompt_template = PromptTemplate(
     input_variables=["questions", "answers"],
     template=(
         "You are a psychologist analyzing responses to a mental health quiz. "
         "Based on the following questions and answers, provide a brief summary "
-        "of the person's mental state:\n\n"
+        "of the user's mental state. Write the response in second person (use 'you' and 'your'), "
+        "not third person (avoid phrases like 'this individual' or 'the person'):\n\n"
         "Questions:\n{questions}\n\n"
         "Answers:\n{answers}\n\n"
         "Summary of mental state:"
@@ -596,7 +656,11 @@ def analyze_questions(questions, answers):
     formatted_questions = "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions)])
     formatted_answers = "\n".join([f"{i+1}. {a}" for i, a in enumerate(answers)])
     prompt = prompt_template.format(questions=formatted_questions, answers=formatted_answers)
-    result = gemini_model.generate_content(prompt)
+    result = genai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config=generation_config,
+    )
     return result.text
 
 emotion_to_genre = {

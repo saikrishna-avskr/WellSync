@@ -5,7 +5,7 @@ Diet API Routes - Flask Blueprint for diet-related endpoints
 from flask import Blueprint, jsonify, request, send_file, make_response
 import os
 import re
-import google.generativeai as genai
+from google import genai
 from datetime import datetime
 import io
 from xml.sax.saxutils import escape
@@ -19,10 +19,7 @@ from diet_db import (
 
 load_dotenv()
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("Google_API_Key"))
-
-_GEMINI_MODELS_CACHE = None
+genai_client = genai.Client()
 
 # Create Blueprint
 diet_bp = Blueprint('diet', __name__, url_prefix='/diet')
@@ -105,27 +102,6 @@ def generate_with_ollama(prompt, model_name="llama3:latest"):
         raise e
 
 
-def get_supported_gemini_models(force_refresh=False):
-    """Return Gemini models that support generateContent."""
-    global _GEMINI_MODELS_CACHE
-
-    if _GEMINI_MODELS_CACHE is not None and not force_refresh:
-        return _GEMINI_MODELS_CACHE
-
-    supported_models = []
-    try:
-        for model in genai.list_models():
-            methods = getattr(model, "supported_generation_methods", []) or []
-            model_name = getattr(model, "name", "")
-            if "generateContent" in methods and "gemini" in model_name.lower():
-                supported_models.append(model_name)
-    except Exception as e:
-        print(f"Could not list Gemini models: {e}")
-
-    _GEMINI_MODELS_CACHE = supported_models
-    return supported_models
-
-
 def generate_with_ai(prompt):
     """Generate content using Ollama (primary) with Gemini fallback."""
     
@@ -138,29 +114,19 @@ def generate_with_ai(prompt):
     # Fallback to Gemini if Ollama fails
     print("Ollama failed, trying Gemini models...")
 
-    available_models = get_supported_gemini_models()
-    preferred_models = [
-        "models/gemini-2.5-flash",
-        "models/gemini-2.0-flash",
-        "models/gemini-1.5-flash-latest",
-        "models/gemini-1.5-flash",
-        "models/gemini-1.5-pro-latest",
-        "models/gemini-1.5-pro"
+    model_names_to_try = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
     ]
-
-    if available_models:
-        model_names_to_try = [m for m in preferred_models if m in available_models]
-        model_names_to_try.extend([m for m in available_models if m not in model_names_to_try])
-    else:
-        # Last-resort static fallback when model listing fails
-        model_names_to_try = preferred_models
     
     last_error = None
     for model in model_names_to_try:
         try:
             print(f"Trying Gemini model: {model}")
-            genai_model = genai.GenerativeModel(model)
-            response = genai_model.generate_content(prompt)
+            response = genai_client.models.generate_content(
+                model=model,
+                contents=prompt,
+            )
             print(f"Successfully generated with {model}")
             return response.text
         except Exception as e:
@@ -168,10 +134,8 @@ def generate_with_ai(prompt):
             print(f"Gemini model {model} failed: {e}")
             continue
 
-    available_msg = f" Available Gemini models: {', '.join(available_models)}" if available_models else ""
     raise last_error or Exception(
         "All AI models failed. Please ensure Ollama is running, internet is available, and your Gemini API key is valid."
-        + available_msg
     )
 
 

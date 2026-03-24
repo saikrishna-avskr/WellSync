@@ -4,7 +4,7 @@ Diet Database Module - MySQL database for storing user diet preferences and meal
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -177,6 +177,80 @@ def init_database():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uq_yoga_pose_stats_user_pose (user_email, pose_name),
             INDEX idx_yoga_pose_stats_user_email (user_email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS mood_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            entry_date DATE NOT NULL,
+            mood_emoji VARCHAR(16) NOT NULL,
+            mood_label VARCHAR(64),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_mood_entries_user_date (user_email, entry_date),
+            INDEX idx_mood_entries_user_date (user_email, entry_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS breathing_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            entry_date DATE NOT NULL,
+            duration_minutes INT DEFAULT 0,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_breathing_entries_user_date (user_email, entry_date),
+            INDEX idx_breathing_entries_user_date (user_email, entry_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS meditation_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            entry_date DATE NOT NULL,
+            duration_minutes INT DEFAULT 0,
+            meditation_type VARCHAR(100),
+            post_mood VARCHAR(100),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_meditation_entries_user_date (user_email, entry_date),
+            INDEX idx_meditation_entries_user_date (user_email, entry_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS quiz_results (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            entry_date DATE NOT NULL,
+            result_summary LONGTEXT NOT NULL,
+            questions_answers JSON,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_quiz_results_user_date (user_email, entry_date),
+            INDEX idx_quiz_results_user_date (user_email, entry_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS journal_entries (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            content LONGTEXT NOT NULL,
+            image_url VARCHAR(1000),
+            entry_date DATE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_journal_entries_user_date (user_email, entry_date),
+            INDEX idx_journal_entries_user_created (user_email, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
@@ -583,6 +657,501 @@ def upsert_yoga_pose_stat(user_email, pose_name, pose_time_seconds, best_hold_se
     conn.close()
 
     return get_yoga_pose_stat(user_email, pose_name)
+
+
+# ==================== Profile Trackers ====================
+
+def upsert_mood_entry(user_email, entry_date, mood_emoji, mood_label=None, notes=None):
+    """Insert or update mood for a given user and date."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO mood_entries (user_email, entry_date, mood_emoji, mood_label, notes)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            mood_emoji = VALUES(mood_emoji),
+            mood_label = VALUES(mood_label),
+            notes = VALUES(notes),
+            updated_at = CURRENT_TIMESTAMP
+    ''', (user_email, entry_date, mood_emoji, mood_label, notes))
+
+    conn.commit()
+    conn.close()
+    return get_mood_entry(user_email, entry_date)
+
+
+def get_mood_entry(user_email, entry_date):
+    """Get mood entry for a specific date."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT user_email,
+               DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+               mood_emoji,
+               mood_label,
+               notes,
+               created_at,
+               updated_at
+        FROM mood_entries
+        WHERE user_email = %s AND entry_date = %s
+        LIMIT 1
+    ''', (user_email, entry_date))
+
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_mood_entries_for_month(user_email, year, month):
+    """Get all mood entries for a month."""
+    month_start = date(int(year), int(month), 1)
+    if int(month) == 12:
+        month_end = date(int(year) + 1, 1, 1)
+    else:
+        month_end = date(int(year), int(month) + 1, 1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+                SELECT user_email,
+                             DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+                             mood_emoji,
+                             mood_label,
+                             notes,
+                             created_at,
+                             updated_at
+        FROM mood_entries
+        WHERE user_email = %s
+          AND entry_date >= %s
+          AND entry_date < %s
+        ORDER BY entry_date ASC
+    ''', (user_email, month_start, month_end))
+
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def upsert_breathing_entry(user_email, entry_date, duration_minutes, notes=None):
+    """Insert or update daily breathing activity entry."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO breathing_entries (user_email, entry_date, duration_minutes, notes)
+        VALUES (%s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            duration_minutes = VALUES(duration_minutes),
+            notes = VALUES(notes),
+            updated_at = CURRENT_TIMESTAMP
+    ''', (user_email, entry_date, int(duration_minutes or 0), notes))
+
+    conn.commit()
+    conn.close()
+    return get_breathing_entry(user_email, entry_date)
+
+
+def get_breathing_entry(user_email, entry_date):
+    """Get breathing entry for a specific date."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT user_email,
+               DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+               duration_minutes,
+               notes,
+               created_at,
+               updated_at
+        FROM breathing_entries
+        WHERE user_email = %s AND entry_date = %s
+        LIMIT 1
+    ''', (user_email, entry_date))
+
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_breathing_entries_between(user_email, start_date, end_date):
+    """Get breathing entries in date range inclusive."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+                SELECT user_email,
+                             DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+                             duration_minutes,
+                             notes,
+                             created_at,
+                             updated_at
+        FROM breathing_entries
+        WHERE user_email = %s
+          AND entry_date >= %s
+          AND entry_date <= %s
+        ORDER BY entry_date ASC
+    ''', (user_email, start_date, end_date))
+
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def upsert_meditation_entry(user_email, entry_date, duration_minutes, meditation_type=None, post_mood=None, notes=None):
+    """Insert or update daily meditation entry."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO meditation_entries
+            (user_email, entry_date, duration_minutes, meditation_type, post_mood, notes)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            duration_minutes = VALUES(duration_minutes),
+            meditation_type = VALUES(meditation_type),
+            post_mood = VALUES(post_mood),
+            notes = VALUES(notes),
+            updated_at = CURRENT_TIMESTAMP
+    ''', (user_email, entry_date, int(duration_minutes or 0), meditation_type, post_mood, notes))
+
+    conn.commit()
+    conn.close()
+    return get_meditation_entry(user_email, entry_date)
+
+
+def get_meditation_entry(user_email, entry_date):
+    """Get meditation entry for a specific date."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT user_email,
+               DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+               duration_minutes,
+               meditation_type,
+               post_mood,
+               notes,
+               created_at,
+               updated_at
+        FROM meditation_entries
+        WHERE user_email = %s AND entry_date = %s
+        LIMIT 1
+    ''', (user_email, entry_date))
+
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_meditation_entries_between(user_email, start_date, end_date):
+    """Get meditation entries in date range inclusive."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+                SELECT user_email,
+                             DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+                             duration_minutes,
+                             meditation_type,
+                             post_mood,
+                             notes,
+                             created_at,
+                             updated_at
+        FROM meditation_entries
+        WHERE user_email = %s
+          AND entry_date >= %s
+          AND entry_date <= %s
+        ORDER BY entry_date ASC
+    ''', (user_email, start_date, end_date))
+
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def upsert_quiz_result(user_email, entry_date, result_summary, questions_answers=None):
+    """Insert or update daily quiz result entry."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    qa_json = json.dumps(questions_answers) if questions_answers is not None else None
+
+    cursor.execute('''
+        INSERT INTO quiz_results (user_email, entry_date, result_summary, questions_answers)
+        VALUES (%s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            result_summary = VALUES(result_summary),
+            questions_answers = VALUES(questions_answers),
+            updated_at = CURRENT_TIMESTAMP
+    ''', (user_email, entry_date, result_summary, qa_json))
+
+    conn.commit()
+    conn.close()
+    return get_quiz_result_for_date(user_email, entry_date)
+
+
+def get_quiz_result_for_date(user_email, entry_date):
+    """Get quiz result for a specific day."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT user_email,
+               DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+               result_summary,
+               questions_answers,
+               created_at,
+               updated_at
+        FROM quiz_results
+        WHERE user_email = %s AND entry_date = %s
+        LIMIT 1
+    ''', (user_email, entry_date))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    result = dict(row)
+    qa_value = result.get("questions_answers")
+    if isinstance(qa_value, str):
+        try:
+            result["questions_answers"] = json.loads(qa_value)
+        except Exception:
+            pass
+    return result
+
+
+def get_quiz_results_for_month(user_email, year, month):
+    """Get all quiz results for a specific month."""
+    month_start = date(int(year), int(month), 1)
+    if int(month) == 12:
+        month_end = date(int(year) + 1, 1, 1)
+    else:
+        month_end = date(int(year), int(month) + 1, 1)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT user_email,
+               DATE_FORMAT(entry_date, '%%Y-%%m-%%d') AS entry_date,
+               result_summary,
+               questions_answers,
+               created_at,
+               updated_at
+        FROM quiz_results
+        WHERE user_email = %s
+          AND entry_date >= %s
+          AND entry_date < %s
+        ORDER BY entry_date ASC
+    ''', (user_email, month_start, month_end))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    results = []
+    for row in rows:
+        item = dict(row)
+        qa_value = item.get("questions_answers")
+        if isinstance(qa_value, str):
+            try:
+                item["questions_answers"] = json.loads(qa_value)
+            except Exception:
+                pass
+        results.append(item)
+
+    return results
+
+
+def create_journal_entry(user_email, title, content, image_url=None, entry_date=None):
+    """Create a journal entry."""
+    safe_entry_date = entry_date or datetime.utcnow().date()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO journal_entries (user_email, title, content, image_url, entry_date)
+        VALUES (%s, %s, %s, %s, %s)
+    ''', (user_email, title, content, image_url, safe_entry_date))
+
+    entry_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return get_journal_entry_by_id(entry_id, user_email)
+
+
+def get_journal_entry_by_id(entry_id, user_email=None):
+    """Get one journal entry."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if user_email:
+        cursor.execute('''
+            SELECT id, user_email, title, content, image_url, entry_date, created_at, updated_at
+            FROM journal_entries
+            WHERE id = %s AND user_email = %s
+            LIMIT 1
+        ''', (entry_id, user_email))
+    else:
+        cursor.execute('''
+            SELECT id, user_email, title, content, image_url, entry_date, created_at, updated_at
+            FROM journal_entries
+            WHERE id = %s
+            LIMIT 1
+        ''', (entry_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_journal_entries(user_email, limit=100, entry_date=None):
+    """List journal entries for a user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if entry_date:
+        cursor.execute('''
+            SELECT id, user_email, title, content, image_url, entry_date, created_at, updated_at
+            FROM journal_entries
+            WHERE user_email = %s AND entry_date = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        ''', (user_email, entry_date, int(limit)))
+    else:
+        cursor.execute('''
+            SELECT id, user_email, title, content, image_url, entry_date, created_at, updated_at
+            FROM journal_entries
+            WHERE user_email = %s
+            ORDER BY entry_date DESC, created_at DESC
+            LIMIT %s
+        ''', (user_email, int(limit)))
+
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def delete_journal_entry(entry_id, user_email):
+    """Delete a journal entry for a specific user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM journal_entries
+        WHERE id = %s AND user_email = %s
+    ''', (entry_id, user_email))
+
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+def get_journal_streak_stats(user_email):
+    """Compute current/longest streak and total entries from journal dates."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT COUNT(*) AS total_entries
+        FROM journal_entries
+        WHERE user_email = %s
+    ''', (user_email,))
+    total_entries_row = cursor.fetchone() or {}
+
+    cursor.execute('''
+        SELECT DISTINCT entry_date
+        FROM journal_entries
+        WHERE user_email = %s
+        ORDER BY entry_date ASC
+    ''', (user_email,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    logged_dates = [row['entry_date'] for row in rows]
+    days_logged = [d.isoformat() for d in logged_dates]
+    total_entries = int(total_entries_row.get('total_entries') or 0)
+
+    if not logged_dates:
+        return {
+            "current_streak": 0,
+            "longest_streak": 0,
+            "total_entries": 0,
+            "days_logged": [],
+        }
+
+    longest_streak = 1
+    running_streak = 1
+
+    for idx in range(1, len(logged_dates)):
+        prev_day = logged_dates[idx - 1]
+        curr_day = logged_dates[idx]
+
+        if curr_day == prev_day + timedelta(days=1):
+            running_streak += 1
+        elif curr_day == prev_day:
+            continue
+        else:
+            running_streak = 1
+
+        longest_streak = max(longest_streak, running_streak)
+
+    logged_set = set(logged_dates)
+    today = datetime.utcnow().date()
+    probe_day = today
+    current_streak = 0
+
+    while probe_day in logged_set:
+        current_streak += 1
+        probe_day -= timedelta(days=1)
+
+    if current_streak == 0 and (today - timedelta(days=1)) in logged_set:
+        probe_day = today - timedelta(days=1)
+        while probe_day in logged_set:
+            current_streak += 1
+            probe_day -= timedelta(days=1)
+
+    return {
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "total_entries": total_entries,
+        "days_logged": days_logged,
+    }
+
+
+def delete_all_user_data(user_email):
+    """Delete all user-scoped data for a user_email across app tables."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    tables = [
+        "user_preferences",
+        "meal_plans",
+        "daily_tracking",
+        "recipe_suggestions",
+        "yoga_pose_stats",
+        "mood_entries",
+        "breathing_entries",
+        "meditation_entries",
+        "quiz_results",
+        "journal_entries",
+    ]
+
+    deleted_counts = {}
+
+    try:
+        for table_name in tables:
+            cursor.execute(f"DELETE FROM {table_name} WHERE user_email = %s", (user_email,))
+            deleted_counts[table_name] = int(cursor.rowcount or 0)
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "deleted_counts": deleted_counts,
+        "total_deleted_rows": sum(deleted_counts.values()),
+    }
 
 
 # Initialize database on module import

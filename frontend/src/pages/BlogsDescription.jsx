@@ -1,15 +1,34 @@
 import { useUser } from "@clerk/clerk-react";
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Dictaphone from "../Dictaphone";
 
 const BlogsDescription = () => {
   const { user } = useUser();
+  const navigate = useNavigate();
   const location = useLocation();
-  const { title, content, imgUrl } = location.state;
+  const { title, content, imgUrl, createdAtText } = location.state;
+
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/blogs");
+  };
+
   return (
     <div>
       <div className="max-w-screen-xl mx-auto p-5 sm:p-10 md:p-16 relative">
+        <div className="mb-4 flex justify-start">
+          <button
+            onClick={handleClose}
+            className="rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-100"
+            aria-label="Close and go back"
+          >
+            Close
+          </button>
+        </div>
         <div
           className="bg-cover bg-center text-center overflow-hidden"
           style={{
@@ -27,12 +46,17 @@ const BlogsDescription = () => {
               <p className="text-gray-700 text-xs mt-2">
                 Written By: {user?.fullName}
               </p>
+              {createdAtText && (
+                <p className="text-gray-500 text-xs mt-1">
+                  Added: {createdAtText}
+                </p>
+              )}
               <p className="text-base leading-8 my-5">{content}</p>
             </div>
           </div>
         </div>
       </div>
-      <Dictaphone/>
+      <Dictaphone />
     </div>
   );
 };

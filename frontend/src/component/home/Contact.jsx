@@ -19,7 +19,6 @@ const Contact = () => {
         </div>
 
         <div className="absolute -top-40 left-20 w-60 sm:top-1/2 md:left-auto md:right-10 lg:top-20 lg:w-80">
-          
           <ImageClipBox
             src="/img/person.png"
             clipClass="sword-man-clip-path md:scale-125"
@@ -28,15 +27,20 @@ const Contact = () => {
 
         <div className="flex flex-col items-center text-center">
           <p className="mb-10 font-general text-[10px] uppercase">
-            Join MindCare
+            join SereniFit
           </p>
 
           <AnimatedTitle
-            title="let&#39;s b<b>u</b>ild a <br /> healthier <br /> m<b>i</b>nd t<b>o</b>gether."
+            title="let&#39;s b<b>u</b>ild a <br /> healthier <br /> m<b>i</b>nd and body <br /> t<b>o</b>gether."
             className="special-font !md:text-[6.2rem] w-full font-zentry !text-5xl !font-black !leading-[.9]"
           />
 
-          <Button title="contact us" containerClass="mt-10 cursor-pointer" />
+          <a
+            href="mailto:wellsync38@gmail.com"
+            aria-label="Email wellsync38@gmail.com"
+          >
+            <Button title="contact us" containerClass="mt-10 cursor-pointer" />
+          </a>
         </div>
       </div>
     </div>

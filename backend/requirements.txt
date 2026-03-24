@@ -1,5 +1,6 @@
 # Environment variables
 python-dotenv
+PyJWT
 
 # HTTP requests
 requests
@@ -20,7 +21,7 @@ langchain-community>=0.3.27,<0.4.0
 langchain-core>=0.3.66,<1.0.0
 langchain-groq>=0.3.6,<0.4.0
 langchain-huggingface>=0.3.0,<0.4.0
-google-generativeai
+google-genai
 
 # Vector store
 faiss-cpu

@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { TiLocationArrow } from "react-icons/ti";
-import DietaryRecommendations from "../../pages/DietaryRecommendations";
 
 export const BentoTilt = ({ children, className = "" }) => {
   const [transformStyle, setTransformStyle] = useState("");
@@ -43,7 +42,7 @@ const Physical = () => (
   <section className="bg-black pb-52">
     <div className="container mx-auto px-3 md:px-10">
       <div className="px-5 py-32">
-        <p className="font-circular-web text-lg text-blue-50">
+        <p className="font-circular-web text-2xl md:text-3xl text-blue-50">
           Welcome to FitCare
         </p>
         <p className="max-w-md font-circular-web text-lg text-blue-50 opacity-50">
@@ -73,7 +72,7 @@ const Physical = () => (
         </a>
       </BentoTilt>
 
-      <div className="grid h-[135vh] w-full grid-cols-2 grid-rows-3 gap-7">
+      <div className="grid h-[95vh] w-full grid-cols-2 grid-rows-2 gap-7">
         <BentoTilt className="bento-tilt_1 row-span-1 md:col-span-1 md:row-span-2">
           <a href="/dietary-recommendations">
             <video
@@ -95,42 +94,23 @@ const Physical = () => (
           </a>
         </BentoTilt>
 
-        <BentoTilt className="bento-tilt_1 row-span-1 ms-32 md:col-span-1 md:ms-0">
-          <video
-            src="videos/physical-3.mp4"
-            loop
-            muted
-            autoPlay
-            className="absolute left-0 top-0 size-full object-cover object-center"
-          />
-          <div className="relative z-10 flex size-full flex-col justify-between p-5 text-blue-50">
-            <h1 className="bento-title special-font">
-              Personalized Workout Plans
-            </h1>
-            <p>
-              Get AI-curated workout routines tailored to your fitness level and
-              goals.
-            </p>
-          </div>
-        </BentoTilt>
-
-        <BentoTilt className="bento-tilt_1 me-14 md:col-span-1 md:me-0">
-          <video
-            src="videos/physical-4.mp4"
-            loop
-            muted
-            autoPlay
-            className="absolute left-0 top-0 size-full object-cover object-center"
-          />
-          <div className="relative z-10 flex size-full flex-col justify-between p-5 text-blue-50">
-            <h1 className="bento-title special-font">
-              Hydration & Nutrition Tracker
-            </h1>
-            <p>
-              Keep track of your daily water intake and nutrition for a balanced
-              diet.
-            </p>
-          </div>
+        <BentoTilt className="bento-tilt_1 row-span-1 ms-32 md:col-span-1 md:row-span-2 md:ms-0">
+          <a href="/fitness-dashboard">
+            <video
+              src="videos/physical-3.mp4"
+              loop
+              muted
+              autoPlay
+              className="absolute left-0 top-0 size-full object-cover object-center"
+            />
+            <div className="relative z-10 flex size-full flex-col justify-between p-5 text-blue-50">
+              <h1 className="bento-title special-font">Fitness Dashboard</h1>
+              <p>
+                Track your steps, distance, sleep, and other health insights in
+                one place with a clear daily overview.
+              </p>
+            </div>
+          </a>
         </BentoTilt>
       </div>
     </div>

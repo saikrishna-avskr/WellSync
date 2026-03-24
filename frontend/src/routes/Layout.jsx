@@ -1,26 +1,27 @@
-import { useAuth, SignedIn } from '@clerk/clerk-react'
-import React from 'react'
-import {Outlet, useNavigate} from 'react-router-dom'
-import NavBar from '../component/home/Navbar'
+import { useAuth } from "@clerk/clerk-react";
+import React from "react";
+import { Outlet, Navigate } from "react-router-dom";
+import NavBar from "../component/home/Navbar";
 export const Layout = () => {
   return (
     <>
-    <div className="layout h-screen">
-    <div className="content" >
-      <Outlet />
-    </div>
-  </div>
+      <div className="layout h-screen">
+        <div className="content">
+          <Outlet />
+        </div>
+      </div>
     </>
-  )
-}
+  );
+};
 export const AuthLayout = () => {
-  const { isSignedIn } = useAuth();
-  const navigate = useNavigate();
+  const { isLoaded, isSignedIn } = useAuth();
 
-  // Redirect the user if they are not signed in
+  if (!isLoaded) {
+    return null;
+  }
+
   if (!isSignedIn) {
-    navigate('/sign-in', { replace: true });
-    return null; // Avoid rendering anything else while redirecting
+    return <Navigate to="/sign-in" replace />;
   }
 
   return (
@@ -28,7 +29,7 @@ export const AuthLayout = () => {
       <div className="navbar h-[100px]">
         <NavBar />
       </div>
-      <div className="content" style={{ height: 'calc(100vh - 70px)' }}>
+      <div className="content" style={{ height: "calc(100vh - 70px)" }}>
         <Outlet />
       </div>
     </div>

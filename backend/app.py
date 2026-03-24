@@ -14,6 +14,10 @@ app.register_blueprint(diet_bp)
 from yoga_routes import yoga_bp
 app.register_blueprint(yoga_bp)
 
+# Register Profile Blueprint
+from profile_routes import profile_bp
+app.register_blueprint(profile_bp)
+
 @app.route('/')
 def home():
     return redirect("https://wellsync.avsaikrishna.com", code=302)

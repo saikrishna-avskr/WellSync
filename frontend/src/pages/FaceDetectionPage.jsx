@@ -13,23 +13,15 @@ export default function FaceDetectionPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const modalTimer = setTimeout(() => {
-      setIsModalOpen(false);
-      setIsLoading(true);
-    }, 10000);
-    const loaderTimer = setTimeout(() => {
-      setIsLoading(false);
-      if (suggestions) {
-        const categories = Object.keys(suggestions);
-        console.log("Categories",categories);
-        setCategories(categories);
-      }
-    }, 13000);
+    if (!suggestions) {
+      setIsModalOpen(true);
+      return;
+    }
 
-    return () => {
-      clearTimeout(modalTimer);
-      clearTimeout(loaderTimer);
-    };
+    setIsModalOpen(false);
+    setIsLoading(false);
+    const nextCategories = Object.keys(suggestions);
+    setCategories(nextCategories);
   }, [suggestions]);
 
   return (
@@ -67,7 +59,7 @@ export default function FaceDetectionPage() {
           )}
         </AnimatePresence>
       </main>
-      <Dictaphone/>
+      <Dictaphone />
     </div>
   );
 }
@@ -140,9 +132,6 @@ function SuggestionCard1({ item }) {
     </a>
   );
 }
-
-
-
 
 function formatTitle(title) {
   return title.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());

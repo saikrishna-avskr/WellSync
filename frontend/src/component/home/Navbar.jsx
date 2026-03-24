@@ -1,12 +1,27 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { UserButton } from "@clerk/clerk-react";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
-    <div className="w-full text-white bg-black h-screen z-50">
+    <div className="relative z-[300] h-auto w-full bg-black text-white">
       <div className="flex flex-col max-w-screen-6xl px-4 mx-auto md:items-center md:justify-between md:flex-row md:px-6 lg:px-8">
         <div className="p-4 flex flex-row justify-between items-center h-[100px]">
           <a
@@ -50,13 +65,31 @@ const Navbar = () => {
             Articles
           </a>
           <a href="/face-detection" className="hover:text-gray-300 transition">
-            Mood Detection
+            Movies
+          </a>
+          <a href="/games" className="hover:text-gray-300 transition">
+            Games
           </a>
           <a href="/chat" className="hover:text-gray-300 transition">
             Virtual Chat
           </a>
+          <a href="/yoga" className="hover:text-gray-300 transition">
+            Yoga
+          </a>
+          <a
+            href="/dietary-recommendations"
+            className="hover:text-gray-300 transition"
+          >
+            Diet Planer
+          </a>
+          <a
+            href="/fitness-dashboard"
+            className="hover:text-gray-300 transition"
+          >
+            Fitness Dashboard
+          </a>
 
-          <div className="relative">
+          <div ref={dropdownRef} className="relative z-[310]">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="hover:text-gray-300 transition flex items-center"
@@ -75,7 +108,7 @@ const Navbar = () => {
               </svg>
             </button>
             {dropdownOpen && (
-              <div className="absolute right-0 mt-4 bg-gray-900 text-white rounded-lg shadow-lg">
+              <div className="absolute right-0 z-[320] mt-4 rounded-lg bg-gray-900 text-white shadow-lg">
                 <a
                   href="https://www.thelivelovelaughfoundation.org/find-help/helplines"
                   className="block px-4 py-2 hover:bg-gray-800"

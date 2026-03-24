@@ -233,6 +233,10 @@ const Yoga = () => {
   const [statusText, setStatusText] = useState(
     "Load complete model before starting.",
   );
+  const [liveGuidance, setLiveGuidance] = useState(
+    "Start a session to get real-time correction cues.",
+  );
+  const [confidenceScore, setConfidenceScore] = useState(0);
   const [skeletonColor, setSkeletonColor] = useState("rgb(255,255,255)");
 
   const getUserEmail = () => {
@@ -397,6 +401,10 @@ const Yoga = () => {
     setBestPerform(Number(selectedPoseStats?.best_hold_seconds || 0));
     setSkeletonColor("rgb(255,255,255)");
     setStatusText("Pose changed. Press start to begin tracking.");
+    setLiveGuidance(
+      "Review the pose instructions, then start session for live guidance.",
+    );
+    setConfidenceScore(0);
 
     if (audioRef.current) {
       audioRef.current.pause();
@@ -445,6 +453,10 @@ const Yoga = () => {
 
     if (!keypoints || keypoints.length === 0) {
       setStatusText("No pose detected. Step into the camera frame.");
+      setLiveGuidance(
+        "Move your full body into view and keep your head, hips, and ankles visible.",
+      );
+      setConfidenceScore(0);
       return;
     }
 
@@ -494,6 +506,10 @@ const Yoga = () => {
       isPoseCorrectRef.current = false;
       stopAudio();
       setStatusText("Keep your full body in frame for reliable tracking.");
+      setLiveGuidance(
+        "Step back slightly, center yourself, and avoid cutting off your arms or legs.",
+      );
+      setConfidenceScore(0);
       return;
     }
 
@@ -506,6 +522,7 @@ const Yoga = () => {
 
     const selectedPoseIndex = CLASS_INDEX[selectedPose];
     const currentScore = scores[selectedPoseIndex] ?? 0;
+    setConfidenceScore(currentScore);
 
     if (currentScore > CONFIDENCE_THRESHOLD) {
       if (!isPoseCorrectRef.current) {
@@ -523,12 +540,24 @@ const Yoga = () => {
       setBestPerform((prevBest) => Math.max(prevBest, roundedElapsed));
       setSkeletonColor("rgb(0,255,0)");
       setStatusText("Perfect alignment. Hold steady.");
+      setLiveGuidance(
+        "Excellent form — keep your breath steady and hold this alignment.",
+      );
       return;
     }
 
     isPoseCorrectRef.current = false;
     setSkeletonColor("rgb(255,255,255)");
     setStatusText("Adjust your pose to match the reference image.");
+    if (currentScore < 0.4) {
+      setLiveGuidance(POSE_DETAILS[selectedPose].instructions[0]);
+    } else if (currentScore < 0.7) {
+      setLiveGuidance(POSE_DETAILS[selectedPose].instructions[1]);
+    } else if (currentScore < 0.9) {
+      setLiveGuidance(POSE_DETAILS[selectedPose].instructions[2]);
+    } else {
+      setLiveGuidance(POSE_DETAILS[selectedPose].instructions[3]);
+    }
     stopAudio();
   };
 
@@ -539,6 +568,10 @@ const Yoga = () => {
 
     setIsSessionActive(true);
     setStatusText("Session started. Match your body with the target pose.");
+    setLiveGuidance(
+      "Mirror the reference pose and keep your full body visible for detection.",
+    );
+    setConfidenceScore(0);
     intervalRef.current = setInterval(() => {
       detectPose();
     }, 100);
@@ -547,6 +580,10 @@ const Yoga = () => {
   const stopSession = () => {
     setIsSessionActive(false);
     setStatusText("Session stopped. You can switch pose and restart.");
+    setLiveGuidance(
+      "Session paused. Press Start Session to continue coaching.",
+    );
+    setConfidenceScore(0);
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -581,11 +618,12 @@ const Yoga = () => {
       <div className="mx-auto w-full max-w-7xl space-y-6">
         <div className="rounded-2xl border border-white/20 bg-blue-200/20 p-6">
           <h1 className="font-zentry text-3xl uppercase md:text-5xl">
-            Yoga Trainer
+            AI Yoga Coach
           </h1>
           <p className="mt-2 max-w-3xl font-robert-regular text-sm text-blue-50/90 md:text-base">
-            Live pose detection from YogaIntelliJ, integrated into WellSync with
-            the same dark visual language.
+            Real-time pose guidance and posture feedback to help you practice
+            safely, improve alignment, and track your yoga progress in
+            SereniFit.
           </p>
         </div>
 
@@ -665,6 +703,20 @@ const Yoga = () => {
             <p className="mt-3 font-robert-regular text-sm text-blue-50/90">
               {statusText}
             </p>
+
+            <div className="mt-4 rounded-xl border border-white/20 bg-white/5 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="font-general text-xs uppercase tracking-[0.2em] text-blue-50/70">
+                  Live Guidance
+                </p>
+                <p className="font-general text-xs uppercase tracking-[0.1em] text-blue-50/80">
+                  Confidence {(confidenceScore * 100).toFixed(1)}%
+                </p>
+              </div>
+              <p className="font-robert-regular text-sm text-white/90">
+                {liveGuidance}
+              </p>
+            </div>
           </div>
 
           <div className="space-y-4 rounded-2xl border border-white/20 bg-black/60 p-5">

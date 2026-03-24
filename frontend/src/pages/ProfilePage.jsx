@@ -1,20 +1,53 @@
-import React from 'react';
-import { useUser } from '@clerk/clerk-react';
-import MoodCalendar from '../component/MoodCalendar';
-import BreathingCalendar from '../component/BreathingCalendar/BreathingCalendar';
-import { StreakPage } from '../component/StreakCalender.jsx/StreakPage';
-import MeditationTracker from '../component/MeditationCalendar/MeditationTracker';
-import Dictaphone from '../Dictaphone';
-
+import React, { useState } from "react";
+import { useUser } from "@clerk/clerk-react";
+import MoodCalendar from "../component/MoodCalendar";
+import BreathingCalendar from "../component/BreathingCalendar/BreathingCalendar";
+import { StreakPage } from "../component/StreakCalender.jsx/StreakPage";
+import MeditationTracker from "../component/MeditationCalendar/MeditationTracker";
+import { deleteAllUserData } from "../utils/profileApi";
 
 const ProfilePage = () => {
   const { isLoaded, isSignedIn, user } = useUser();
+  const userEmail = user?.primaryEmailAddress?.emailAddress;
+  const [showManageData, setShowManageData] = useState(false);
+  const [confirmPhrase, setConfirmPhrase] = useState("");
+  const [isDeletingData, setIsDeletingData] = useState(false);
 
   if (!isLoaded || !isSignedIn) {
     return null;
   }
 
-  console.log(user);
+  const handleDeleteAllData = async () => {
+    if (!userEmail || isDeletingData) {
+      return;
+    }
+
+    if (confirmPhrase.trim() !== "DELETE") {
+      alert("Please type DELETE to confirm.");
+      return;
+    }
+
+    const ok = window.confirm(
+      "This will permanently delete all your SereniFit data, including profile tracker records, meal records, journals, and chat conversations. Continue?",
+    );
+
+    if (!ok) {
+      return;
+    }
+
+    try {
+      setIsDeletingData(true);
+      await deleteAllUserData(userEmail);
+      alert("All your SereniFit data has been deleted successfully.");
+      setConfirmPhrase("");
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to delete all user data", error);
+      alert(`Failed to delete data: ${error?.message || "Unknown error"}`);
+    } finally {
+      setIsDeletingData(false);
+    }
+  };
 
   return (
     <main className="profile-page">
@@ -33,7 +66,7 @@ const ProfilePage = () => {
         </div>
         <div
           className="top-auto bottom-0 left-0 right-0 w-full absolute pointer-events-none overflow-hidden h-[70px]"
-          style={{ transform: 'translateZ(0px)' }}
+          style={{ transform: "translateZ(0px)" }}
         >
           <svg
             className="absolute bottom-0 overflow-hidden"
@@ -75,19 +108,50 @@ const ProfilePage = () => {
                       <i className="fas fa-map-marker-alt mr-2 text-lg text-blueGray-400"></i>
                       {user.primaryEmailAddress.emailAddress}
                     </div>
-                    
                   </div>
                 </div>
 
-                {/* Connect Button on the Right */}
+                {/* Manage Data Button on the Right */}
                 <div className="w-full lg:w-3/12 px-4 text-center lg:text-right">
                   <div className="py-6 px-3 mt-4 lg:mt-0">
                     <button
                       className="bg-black active:bg-pink-600 uppercase text-white font-bold hover:shadow-md shadow text-xs px-4 py-2 rounded outline-none focus:outline-none ease-linear transition-all duration-150"
                       type="button"
+                      onClick={() => setShowManageData((prev) => !prev)}
                     >
-                      Connect
+                      Manage Data
                     </button>
+                    {showManageData && (
+                      <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-left">
+                        <p className="text-xs text-red-700 font-semibold mb-2">
+                          Danger Zone
+                        </p>
+                        <p className="text-xs text-red-700 mb-2">
+                          Select this action to permanently delete all your user
+                          data from SereniFit, including chat conversations.
+                        </p>
+                        <label className="block text-[11px] text-red-700 mb-1">
+                          Type DELETE to confirm
+                        </label>
+                        <input
+                          type="text"
+                          value={confirmPhrase}
+                          onChange={(event) =>
+                            setConfirmPhrase(event.target.value)
+                          }
+                          placeholder="DELETE"
+                          className="w-full text-xs px-2 py-1 rounded border border-red-300 mb-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleDeleteAllData}
+                          disabled={isDeletingData}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded disabled:opacity-60"
+                        >
+                          {isDeletingData ? "Deleting..." : "Delete All Data"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -95,26 +159,25 @@ const ProfilePage = () => {
               <div className="mt-10 py-10 border-t border-blueGray-200 text-center"></div>
 
               <div>
-                <MoodCalendar />
+                <MoodCalendar userEmail={userEmail} />
               </div>
 
-              <div className='lg:flex gap-8 my-16'>
-                <div className='flex-1'>
-                  <BreathingCalendar />
+              <div className="lg:flex gap-8 my-16">
+                <div className="flex-1">
+                  <BreathingCalendar userEmail={userEmail} />
                 </div>
-                <div className='flex-1'>
-                  <MeditationTracker />
+                <div className="flex-1">
+                  <MeditationTracker userEmail={userEmail} />
                 </div>
               </div>
 
-              <div className='my-16'>
-                <StreakPage />
+              <div className="my-16">
+                <StreakPage userEmail={userEmail} />
               </div>
             </div>
           </div>
         </div>
       </section>
-      <Dictaphone/>
     </main>
   );
 };

@@ -1,37 +1,71 @@
 import React, { useEffect, useRef } from "react";
-import * as faceapi from "face-api.js";
+import "@tensorflow/tfjs-backend-webgl";
+import "@tensorflow/tfjs-backend-cpu";
+import * as faceapi from "@vladmandic/face-api";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const FaceDetection = ({ setSuggestions}) => {
+const FaceDetection = ({ setSuggestions }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const videoStreamRef = useRef(null);
   const moodIntervalRef = useRef(null);
+  const fallbackTimeoutRef = useRef(null);
+  const modelsLoadedRef = useRef(false);
+  const requestCompletedRef = useRef(false);
 
   useEffect(() => {
     const loadModels = async () => {
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
-        faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
-        faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
-        faceapi.nets.faceExpressionNet.loadFromUri("/models"),
-        faceapi.nets.ageGenderNet.loadFromUri("/models"),
-      ]);
-      startVideo();
-    };
-
-    const startVideo = () => {
-      navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then((stream) => {
-          videoStreamRef.current = stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
+      try {
+        const tf = faceapi.tf;
+        await tf.ready();
+        if (!tf.getBackend()) {
+          try {
+            await tf.setBackend("webgl");
+          } catch {
+            await tf.setBackend("cpu");
           }
-        })
-        .catch((err) => console.error("Error accessing webcam:", err));
+        }
+        await tf.ready();
+
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
+          faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+          faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
+          faceapi.nets.faceExpressionNet.loadFromUri("/models"),
+          faceapi.nets.ageGenderNet.loadFromUri("/models"),
+        ]);
+        modelsLoadedRef.current = true;
+      } catch (error) {
+        console.error("Error loading face-api models:", error);
+      }
     };
 
+    const startVideo = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error("Camera API is not supported in this browser.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        videoStreamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch((error) => {
+              console.error("Error starting video playback:", error);
+            });
+          };
+        }
+      } catch (err) {
+        console.error("Error accessing webcam:", err);
+      }
+    };
+
+    startVideo();
     loadModels();
 
     return () => {
@@ -44,6 +78,19 @@ const FaceDetection = ({ setSuggestions}) => {
     if (!video) return;
 
     const handleVideoPlay = async () => {
+      if (!modelsLoadedRef.current) {
+        let retries = 0;
+        while (!modelsLoadedRef.current && retries < 80) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          retries += 1;
+        }
+      }
+
+      if (!modelsLoadedRef.current) {
+        console.error("Face models are not loaded. Detection aborted.");
+        return;
+      }
+
       const canvas = faceapi.createCanvasFromMedia(video);
       document.body.append(canvas);
       canvasRef.current = canvas;
@@ -53,15 +100,17 @@ const FaceDetection = ({ setSuggestions}) => {
       canvas.style.top = `${top}px`;
       canvas.width = width;
       canvas.height = height;
-      canvas.style.zIndex = 9999; 
+      canvas.style.zIndex = 9999;
       const displaySize = { width: width, height: height };
       faceapi.matchDimensions(canvas, displaySize);
 
       let moodData = [];
       let detectionCount = 0;
 
-      const fallbackTimeout = setTimeout(() => {
-        console.warn("No face detected. Falling back to default mood.");
+      fallbackTimeoutRef.current = setTimeout(() => {
+        if (requestCompletedRef.current) {
+          return;
+        }
         clearInterval(moodIntervalRef.current);
         stopVideoStream();
         const averageMood = "happy";
@@ -71,15 +120,32 @@ const FaceDetection = ({ setSuggestions}) => {
       }, 10000);
 
       moodIntervalRef.current = setInterval(async () => {
+        if (requestCompletedRef.current) {
+          clearInterval(moodIntervalRef.current);
+          return;
+        }
+
         if (!video.paused && !video.ended) {
-          const detections = await faceapi
-            .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-            .withFaceExpressions()
-            .withAgeAndGender();
+          let detections = [];
+          try {
+            detections = await faceapi
+              .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+              .withFaceExpressions()
+              .withAgeAndGender();
+          } catch (error) {
+            console.error("Face detection iteration failed:", error);
+            clearInterval(moodIntervalRef.current);
+            clearTimeout(fallbackTimeoutRef.current);
+            stopVideoStream();
+            if (!requestCompletedRef.current) {
+              sendMoodToAPI("happy", 25);
+            }
+            return;
+          }
 
           const resizedDetections = faceapi.resizeResults(
             detections,
-            displaySize
+            displaySize,
           );
 
           const ctx = canvas.getContext("2d");
@@ -95,7 +161,7 @@ const FaceDetection = ({ setSuggestions}) => {
           }
 
           if (detectionCount >= 50) {
-            clearTimeout(fallbackTimeout); 
+            clearTimeout(fallbackTimeoutRef.current);
             clearInterval(moodIntervalRef.current);
             stopVideoStream();
             const averageMood = calculateAverageMood(moodData);
@@ -116,6 +182,9 @@ const FaceDetection = ({ setSuggestions}) => {
       if (moodIntervalRef.current) {
         clearInterval(moodIntervalRef.current);
       }
+      if (fallbackTimeoutRef.current) {
+        clearTimeout(fallbackTimeoutRef.current);
+      }
       if (canvasRef.current) {
         canvasRef.current.remove();
       }
@@ -126,6 +195,7 @@ const FaceDetection = ({ setSuggestions}) => {
     if (videoStreamRef.current) {
       const tracks = videoStreamRef.current.getTracks();
       tracks.forEach((track) => track.stop());
+      videoStreamRef.current = null;
     }
   };
 
@@ -144,13 +214,13 @@ const FaceDetection = ({ setSuggestions}) => {
 
     // Return the dominant mood
     return Object.keys(aggregatedMood).reduce((a, b) =>
-      aggregatedMood[a] > aggregatedMood[b] ? a : b
+      aggregatedMood[a] > aggregatedMood[b] ? a : b,
     );
   };
 
   const sendMoodToAPI = async (mood, age) => {
     try {
-      console.log(`Sending mood: ${mood}, Age: ${age}`);
+      requestCompletedRef.current = true;
       const response = await fetch(`${BACKEND_URL}/suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,7 +230,6 @@ const FaceDetection = ({ setSuggestions}) => {
         throw new Error(`Server Error: ${response.status}`);
       }
       const suggestions = await response.json();
-    console.log(suggestions)
       setSuggestions(suggestions["suggestions"]);
     } catch (error) {
       console.error("Error sending mood to API:", error);
@@ -169,7 +238,14 @@ const FaceDetection = ({ setSuggestions}) => {
 
   return (
     <div className="video-container">
-      <video ref={videoRef} width="640" height="480" autoPlay muted />
+      <video
+        ref={videoRef}
+        width="640"
+        height="480"
+        autoPlay
+        muted
+        playsInline
+      />
     </div>
   );
 };

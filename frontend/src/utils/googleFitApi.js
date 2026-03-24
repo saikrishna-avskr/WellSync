@@ -2,86 +2,159 @@
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
 const SCOPES = [
-  'https://www.googleapis.com/auth/fitness.activity.read',
-  'https://www.googleapis.com/auth/fitness.heart_rate.read',
-  'https://www.googleapis.com/auth/fitness.sleep.read',
-  'https://www.googleapis.com/auth/fitness.body.read',
-  'https://www.googleapis.com/auth/fitness.nutrition.read',
-  'https://www.googleapis.com/auth/fitness.location.read'
-].join(' ');
+  "https://www.googleapis.com/auth/fitness.activity.read",
+  "https://www.googleapis.com/auth/fitness.heart_rate.read",
+  "https://www.googleapis.com/auth/fitness.sleep.read",
+  "https://www.googleapis.com/auth/fitness.body.read",
+  "https://www.googleapis.com/auth/fitness.nutrition.read",
+  "https://www.googleapis.com/auth/fitness.location.read",
+].join(" ");
 
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
+let initPromise = null;
 
 // Initialize Google Identity Services
 export const initGoogleAPI = () => {
-  return new Promise((resolve, reject) => {
-    // Load the Google Identity Services script
-    const gisScript = document.createElement('script');
-    gisScript.src = 'https://accounts.google.com/gsi/client';
-    gisScript.onload = () => {
-      window.google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: handleCredentialResponse
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = new Promise((resolve, reject) => {
+    if (!CLIENT_ID) {
+      reject(new Error("Missing VITE_GOOGLE_CLIENT_ID in frontend/.env"));
+      return;
+    }
+
+    if (!API_KEY) {
+      reject(new Error("Missing VITE_GOOGLE_API_KEY in frontend/.env"));
+      return;
+    }
+
+    if (gisInited && gapiInited && tokenClient) {
+      resolve();
+      return;
+    }
+
+    const initializeGapiClient = async () => {
+      window.gapi.load("client", async () => {
+        try {
+          await window.gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: [
+              "https://www.googleapis.com/discovery/v1/apis/fitness/v1/rest",
+            ],
+          });
+          gapiInited = true;
+
+          tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: () => {},
+          });
+
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
       });
-      gisInited = true;
+    };
 
-      // Load the Google API script
-      const gapiScript = document.createElement('script');
-      gapiScript.src = 'https://apis.google.com/js/api.js';
-      gapiScript.onload = () => {
-        window.gapi.load('client', async () => {
-          try {
-            await window.gapi.client.init({
-              apiKey: API_KEY,
-              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/fitness/v1/rest']
-            });
-            gapiInited = true;
+    const loadGapiScript = () => {
+      if (window.gapi) {
+        initializeGapiClient();
+        return;
+      }
 
-            // Initialize token client
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
-              client_id: CLIENT_ID,
-              scope: SCOPES,
-              callback: (tokenResponse) => {
-                if (tokenResponse && tokenResponse.access_token) {
-                  window.gapi.client.setToken({ access_token: tokenResponse.access_token });
-                  resolve();
-                } else {
-                  reject(new Error('Failed to get access token'));
-                }
-              }
-            });
-
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
-      };
+      const gapiScript = document.createElement("script");
+      gapiScript.src = "https://apis.google.com/js/api.js";
+      gapiScript.onload = initializeGapiClient;
       gapiScript.onerror = reject;
       document.head.appendChild(gapiScript);
     };
+
+    const initializeGisClient = () => {
+      window.google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleCredentialResponse,
+      });
+      gisInited = true;
+      loadGapiScript();
+    };
+
+    if (window.google?.accounts?.id) {
+      initializeGisClient();
+      return;
+    }
+
+    const gisScript = document.createElement("script");
+    gisScript.src = "https://accounts.google.com/gsi/client";
+    gisScript.onload = initializeGisClient;
     gisScript.onerror = reject;
     document.head.appendChild(gisScript);
+  }).catch((error) => {
+    initPromise = null;
+    throw error;
   });
+
+  return initPromise;
 };
 
 const handleCredentialResponse = (response) => {
-  console.log('Credential response:', response);
+  console.log("Credential response:", response);
+};
+
+const extractGoogleErrorMessage = (error) => {
+  if (!error) return "Unknown Google Fit API error";
+
+  const resultMessage = error?.result?.error?.message;
+  const bodyMessage = (() => {
+    try {
+      if (!error?.body) return null;
+      const parsed = JSON.parse(error.body);
+      return parsed?.error?.message || null;
+    } catch {
+      return null;
+    }
+  })();
+
+  return resultMessage || bodyMessage || error?.message || String(error);
 };
 
 // Sign in to Google
-export const signIn = () => {
+export const signIn = async () => {
+  if (!tokenClient) {
+    await initGoogleAPI();
+  }
+
   return new Promise((resolve, reject) => {
     if (!tokenClient) {
-      reject(new Error('Token client not initialized'));
+      reject(new Error("Token client not initialized"));
       return;
     }
 
     try {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-      resolve();
+      tokenClient.callback = (tokenResponse) => {
+        if (tokenResponse?.error) {
+          reject(
+            new Error(tokenResponse.error_description || tokenResponse.error),
+          );
+          return;
+        }
+
+        if (tokenResponse?.access_token) {
+          window.gapi.client.setToken({
+            access_token: tokenResponse.access_token,
+          });
+          resolve(tokenResponse);
+          return;
+        }
+
+        reject(new Error("Failed to get access token"));
+      };
+
+      tokenClient.requestAccessToken({ prompt: "consent" });
     } catch (error) {
       reject(error);
     }
@@ -100,8 +173,8 @@ export const signOut = () => {
     }
 
     // Clear any stored tokens
-    localStorage.removeItem('google_access_token');
-    sessionStorage.removeItem('google_access_token');
+    localStorage.removeItem("google_access_token");
+    sessionStorage.removeItem("google_access_token");
 
     resolve();
   });
@@ -124,8 +197,8 @@ export const getUserProfile = () => {
   // This would require 'profile' scope which we don't have
   // For now, return basic info if available
   return {
-    name: 'User',
-    email: 'user@example.com'
+    name: "User",
+    email: "user@example.com",
   };
 };
 
@@ -141,97 +214,144 @@ export const formatTimestamp = (timestamp) => {
 // Fetch fitness data
 export const fetchFitnessData = async (dataType, startTime, endTime) => {
   try {
-    const response = await gapi.client.fitness.users.dataset.aggregate({
-      userId: 'me',
-      requestBody: {
-        aggregateBy: [{
-          dataTypeName: dataType
-        }],
-        bucketByTime: { durationMillis: 86400000 }, // 1 day
+    if (!window.gapi?.client) {
+      throw new Error("Google API client is not initialized");
+    }
+
+    const response = await window.gapi.client.request({
+      path: "/fitness/v1/users/me/dataset:aggregate",
+      method: "POST",
+      body: {
+        aggregateBy: [
+          {
+            dataTypeName: dataType,
+          },
+        ],
+        bucketByTime: {
+          durationMillis: 86400000,
+        },
         startTimeMillis: startTime,
-        endTimeMillis: endTime
-      }
+        endTimeMillis: endTime,
+      },
     });
 
-    return response.result.bucket;
+    return response?.result?.bucket || [];
   } catch (error) {
-    console.error('Error fetching fitness data:', error);
-    throw error;
+    console.error("Error fetching fitness data:", error);
+    const apiMessage = extractGoogleErrorMessage(error);
+    throw new Error(`Failed for ${dataType}: ${apiMessage}`);
   }
 };
 
 // Get steps data
 export const getStepsData = async (startTime, endTime) => {
-  const buckets = await fetchFitnessData('com.google.step_count.delta', startTime, endTime);
-  return buckets.map(bucket => ({
+  const buckets = await fetchFitnessData(
+    "com.google.step_count.delta",
+    startTime,
+    endTime,
+  );
+  return buckets.map((bucket) => ({
     date: new Date(parseInt(bucket.startTimeMillis)),
-    steps: bucket.dataset[0]?.point?.[0]?.value?.[0]?.intVal || 0
+    steps: bucket.dataset[0]?.point?.[0]?.value?.[0]?.intVal || 0,
   }));
 };
 
 // Get heart rate data
 export const getHeartRateData = async (startTime, endTime) => {
-  const buckets = await fetchFitnessData('com.google.heart_rate.bpm', startTime, endTime);
-  return buckets.map(bucket => ({
+  const buckets = await fetchFitnessData(
+    "com.google.heart_rate.bpm",
+    startTime,
+    endTime,
+  );
+  return buckets.map((bucket) => ({
     date: new Date(parseInt(bucket.startTimeMillis)),
-    heartRate: bucket.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || 0
+    heartRate: bucket.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || 0,
   }));
 };
 
 // Get sleep data
 export const getSleepData = async (startTime, endTime) => {
-  const buckets = await fetchFitnessData('com.google.sleep.segment', startTime, endTime);
-  return buckets.map(bucket => ({
+  const buckets = await fetchFitnessData(
+    "com.google.sleep.segment",
+    startTime,
+    endTime,
+  );
+  return buckets.map((bucket) => ({
     date: new Date(parseInt(bucket.startTimeMillis)),
-    sleepDuration: bucket.dataset[0]?.point?.reduce((total, point) => {
-      const start = nanoToMilli(point.startTimeNanos);
-      const end = nanoToMilli(point.endTimeNanos);
-      return total + (end - start);
-    }, 0) || 0
+    sleepDuration:
+      bucket.dataset[0]?.point?.reduce((total, point) => {
+        const start = nanoToMilli(point.startTimeNanos);
+        const end = nanoToMilli(point.endTimeNanos);
+        return total + (end - start);
+      }, 0) || 0,
   }));
 };
 
 // Get nutrition data
 export const getNutritionData = async (startTime, endTime) => {
-  const buckets = await fetchFitnessData('com.google.nutrition', startTime, endTime);
-  return buckets.map(bucket => ({
+  const buckets = await fetchFitnessData(
+    "com.google.nutrition",
+    startTime,
+    endTime,
+  );
+  return buckets.map((bucket) => ({
     date: new Date(parseInt(bucket.startTimeMillis)),
-    calories: bucket.dataset[0]?.point?.reduce((total, point) => {
-      return total + (point.value?.find(v => v.mapKey === 'calories')?.fpVal || 0);
-    }, 0) || 0
+    calories:
+      bucket.dataset[0]?.point?.reduce((total, point) => {
+        return (
+          total +
+          (point.value?.find((v) => v.mapKey === "calories")?.fpVal || 0)
+        );
+      }, 0) || 0,
   }));
 };
 
 // Get distance data
 export const getDistanceData = async (startTime, endTime) => {
-  const buckets = await fetchFitnessData('com.google.distance.delta', startTime, endTime);
-  return buckets.map(bucket => ({
+  const buckets = await fetchFitnessData(
+    "com.google.distance.delta",
+    startTime,
+    endTime,
+  );
+  return buckets.map((bucket) => ({
     date: new Date(parseInt(bucket.startTimeMillis)),
-    distance: bucket.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || 0
+    distance: bucket.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || 0,
   }));
 };
 
 // Get body measurements
 export const getBodyData = async (startTime, endTime) => {
-  const weightBuckets = await fetchFitnessData('com.google.weight', startTime, endTime);
-  const heightBuckets = await fetchFitnessData('com.google.height', startTime, endTime);
+  const weightBuckets = await fetchFitnessData(
+    "com.google.weight",
+    startTime,
+    endTime,
+  );
+  const heightBuckets = await fetchFitnessData(
+    "com.google.height",
+    startTime,
+    endTime,
+  );
 
   const bodyData = [];
 
   // Combine weight and height data
   const allDates = new Set([
-    ...weightBuckets.map(b => b.startTimeMillis),
-    ...heightBuckets.map(b => b.startTimeMillis)
+    ...weightBuckets.map((b) => b.startTimeMillis),
+    ...heightBuckets.map((b) => b.startTimeMillis),
   ]);
 
-  allDates.forEach(dateMillis => {
-    const weightBucket = weightBuckets.find(b => b.startTimeMillis === dateMillis);
-    const heightBucket = heightBuckets.find(b => b.startTimeMillis === dateMillis);
+  allDates.forEach((dateMillis) => {
+    const weightBucket = weightBuckets.find(
+      (b) => b.startTimeMillis === dateMillis,
+    );
+    const heightBucket = heightBuckets.find(
+      (b) => b.startTimeMillis === dateMillis,
+    );
 
     bodyData.push({
       date: new Date(parseInt(dateMillis)),
       weight: weightBucket?.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || null,
-      height: heightBucket?.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || null
+      height: heightBucket?.dataset[0]?.point?.[0]?.value?.[0]?.fpVal || null,
     });
   });
 

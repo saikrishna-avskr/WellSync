@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import dayjs from "dayjs";
 import {
   HiOutlinePaperClip,
   HiOutlineGlobeAlt,
@@ -14,6 +15,7 @@ import UserMessage from "../component/Chatbot/UserMessage";
 import TextInput from "../component/Chatbot/TextInput";
 import VoiceInput from "../component/Chatbot/VoiceInput";
 import QuizModal from "../component/Chatbot/QuizModal";
+import { fetchQuizResults, saveQuizResult } from "../utils/profileApi";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 import Dictaphone from "../Dictaphone";
 
@@ -30,7 +32,7 @@ const Chat = () => {
     {
       type: "bot",
       message:
-        "Hey there! 👋 Welcome to WellSync. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
+        "Hey there! 👋 Welcome to SereniFit. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
     },
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -58,6 +60,7 @@ const Chat = () => {
 
   // Get user email for display
   const userEmail = user?.primaryEmailAddress?.emailAddress;
+  const todayKey = dayjs().format("YYYY-MM-DD");
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -73,6 +76,28 @@ const Chat = () => {
       loadUserSessions();
     }
   }, [isSignedIn]);
+
+  const refreshDailyQuizVisibility = useCallback(async () => {
+    if (!userEmail) {
+      setShowQuizButton(true);
+      return;
+    }
+
+    try {
+      const response = await fetchQuizResults(userEmail, {
+        entryDate: todayKey,
+      });
+      const hasTakenQuizToday = Boolean((response.results || []).length);
+      setShowQuizButton(!hasTakenQuizToday);
+    } catch (error) {
+      console.error("Failed to fetch quiz status", error);
+      setShowQuizButton(true);
+    }
+  }, [todayKey, userEmail]);
+
+  useEffect(() => {
+    refreshDailyQuizVisibility();
+  }, [refreshDailyQuizVisibility]);
 
   const loadUserSessions = async () => {
     try {
@@ -119,7 +144,7 @@ const Chat = () => {
             {
               type: "bot",
               message:
-                "Hey there! 👋 Welcome to WellSync. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
+                "Hey there! 👋 Welcome to SereniFit. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
             },
           ]);
         }
@@ -140,10 +165,10 @@ const Chat = () => {
       {
         type: "bot",
         message:
-          "Hey there! 👋 Welcome to WellSync. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
+          "Hey there! 👋 Welcome to SereniFit. I'm here to listen, support, and chat with you — no judgments, just good vibes. What's on your mind today?",
       },
     ]);
-    setShowQuizButton(true);
+    refreshDailyQuizVisibility();
     setShowSidebar(false);
   };
 
@@ -214,20 +239,32 @@ const Chat = () => {
     }
   };
 
-  const handleQuizSubmit = (quizResponse) => {
+  const handleQuizSubmit = async ({ summary, questionsAndAnswers }) => {
+    if (userEmail) {
+      try {
+        await saveQuizResult(userEmail, {
+          entry_date: todayKey,
+          result_summary: summary,
+          questions_answers: questionsAndAnswers,
+        });
+      } catch (error) {
+        console.error("Failed to save quiz result", error);
+      }
+    }
+
+    setShowQuizButton(false);
     setChatHistory((prevHistory) => [
       ...prevHistory,
-      { type: "user", message: `Quiz Response: ${quizResponse}` },
-    ]);
-    setChatHistory((prevHistory) => [
-      ...prevHistory,
-      { type: "bot", message: "Thank you for sharing your feelings!" },
+      { type: "user", message: "Quiz completed" },
+      {
+        type: "bot",
+        message: summary || "Thank you for sharing your feelings!",
+      },
     ]);
   };
 
   const handleQuizButtonClick = () => {
     setQuizModalOpen(true);
-    setShowQuizButton(false);
   };
 
   const handleCopy = (text) => {
@@ -332,7 +369,7 @@ const Chat = () => {
             </svg>
           </button>
           <span className="text-sm text-gray-500">
-            {isLoadingHistory ? "Loading..." : "WellSync Chat"}
+            {isLoadingHistory ? "Loading..." : "SereniFit Chat"}
           </span>
           {userEmail && (
             <span className="ml-auto text-xs text-gray-400">{userEmail}</span>
