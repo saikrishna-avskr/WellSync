@@ -1,24 +1,22 @@
-from flask import Flask,jsonify,request
+from flask import Flask,jsonify,request,redirect
 from flask_cors import CORS, cross_origin
 from helper import *
+import time
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://13.71.95.26:5173", "https://wellsync.avsaikrishna.com"])
 
-sampleoutput = '''
-I'm so sorry to hear that you're feeling sad today. It can be really tough to deal with those feelings. Would you like to talk about what's going on and why you're feeling sad? Sometimes sharing what's on your mind can help you feel a bit better. I'm here to listen and offer support.
-'''
-sampleoutput2 = '''
-In the meantime, here are a few things that might help brighten your day:
+# Register Diet Blueprint
+from diet_routes import diet_bp
+app.register_blueprint(diet_bp)
 
-* Take a few deep breaths and try to focus on the present moment. Sometimes, when we're feeling overwhelmed, it can help to take a step back and just be in the here and now.
-* Do something that brings you joy, even if it's just for a few minutes. This could be reading a book, listening to music, or taking a short walk outside.
-* Reach out to a friend or loved one and talk to them about how you're feeling. Sometimes, just knowing that someone is there to listen and support you can make a big difference.
-'''
+# Register Yoga Blueprint
+from yoga_routes import yoga_bp
+app.register_blueprint(yoga_bp)
 
-sampleoutput3 = '''
-Hello there. I'm so sorry to hear that you're feeling down. I'd be happy to try and lift your mood with a joke. Here's one: Why couldn't the bicycle stand up by itself? (Wait for it...) Because it was two-tired! I hope that brought a small smile to your face. If you're willing to share, what's been on your mind lately and how can I help you feel better?
-'''
+@app.route('/')
+def home():
+    return redirect("https://wellsync.avsaikrishna.com", code=302)
 
 @app.route('/voice')
 # @cross_origin()
@@ -28,23 +26,141 @@ def voice():
     print(result.get('answer'))
     TextToAudio(result.get('answer'))   
     return jsonify({'st':result.get('answer')})
-    # TextToAudio(st)
-    # st= "Hello, the code is working"
-    # return jsonify({'st':st})
 
 @app.route('/predict',methods=['GET', 'POST'])
 # @cross_origin()
 def predict():
     try:
         chat = request.get_json()
-        result = bot(chat.get('data'))
-        return jsonify({"data":result.get('answer')})
-        # code = {"data": "Hello, the code is working"}
-        code  = {"data":sampleoutput3}
-        return code
-        # return chat
+        session_id = chat.get('session_id', str(uuid.uuid4()))
+        message = chat.get('data')
+        
+        # Get user email from Clerk token (primary identifier)
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = chat.get('user_id', 'anonymous')
+        
+        # Use the bot_with_history function that stores conversations in Pinecone
+        if user_email and user_email != 'anonymous':
+            result = bot_with_history(message, user_email, session_id)
+        else:
+            # Fallback for anonymous users - just use the regular bot
+            result = bot(message)
+            # Still try to log to Pinecone
+            try:
+                meta = {"source": "predict", "created": int(time.time())}
+                upsert_chat_to_pinecone(message, metadata=meta)
+            except Exception as _:
+                pass
+        
+        return jsonify({
+            "data": result.get('answer'),
+            "session_id": session_id,
+            "user_email": user_email
+        })
     except Exception as e:
-        return jsonify({"error":e})
+        return jsonify({"error": str(e)})
+
+
+# ============ Conversation History Endpoints ============
+
+@app.route('/conversations/history', methods=['POST'])
+def get_history():
+    """Get conversation history for a user/session."""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        limit = data.get('limit', 20)
+        
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        history = get_conversation_history(user_email, session_id, limit)
+        return jsonify({"history": history})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/conversations/sessions', methods=['POST'])
+def get_sessions():
+    """Get list of sessions for a user."""
+    try:
+        data = request.get_json()
+        limit = data.get('limit', 10)
+        
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        sessions = get_user_sessions(user_email, limit)
+        return jsonify({"sessions": sessions})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/conversations/delete', methods=['POST'])
+def delete_conversation():
+    """Delete a conversation session."""
+    try:
+        data = request.get_json()
+        session_id = data.get('session_id')
+        
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        
+        success = delete_session(user_email, session_id)
+        return jsonify({"success": success})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/conversations/context', methods=['POST'])
+def get_context():
+    """Get relevant context from past conversations for a query."""
+    try:
+        data = request.get_json()
+        query = data.get('query')
+        limit = data.get('limit', 5)
+        
+        # Get user email from Clerk token
+        user_email = get_email_from_clerk_request(request)
+        
+        # Fallback to user_id from request body if no auth token
+        if not user_email:
+            user_email = data.get('user_id')
+        
+        if not user_email:
+            return jsonify({"error": "Authentication required"}), 401
+        
+        if not query:
+            return jsonify({"error": "query is required"}), 400
+        
+        context = get_relevant_context(user_email, query, limit)
+        return jsonify({"context": context})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
 
 @app.route('/analyze', methods=['POST'])
@@ -77,6 +193,26 @@ def suggest():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__=="__main__":
-    app.run(debug=True,
-        port=8080)
+
+@app.route('/pinecone_test', methods=['POST'])
+def pinecone_test():
+    """Test endpoint to check Pinecone connection status."""
+    try:
+        index = get_pinecone_index()
+        if index is None:
+            return jsonify({"status": "not_configured", "message": "Pinecone is not configured"}), 200
+        
+        # Try to get index stats
+        stats = index.describe_index_stats()
+        return jsonify({
+            "status": "connected",
+            "index_name": PINECONE_INDEX,
+            "total_vectors": stats.total_vector_count,
+            "dimensions": stats.dimension
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=8080)
+

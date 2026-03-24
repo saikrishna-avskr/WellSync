@@ -4,6 +4,7 @@ import FaceDetection from "../component/FaceDetection/FaceDetection";
 import { BentoMovieCardImage, BentoTilt } from "../component/home/Features";
 import Modal from "../component/FaceDetection/Modal";
 import Loader from "../component/FaceDetection/Loader";
+import Dictaphone from "../Dictaphone";
 
 export default function FaceDetectionPage() {
   const [suggestions, setSuggestions] = useState(null);
@@ -66,6 +67,7 @@ export default function FaceDetectionPage() {
           )}
         </AnimatePresence>
       </main>
+      <Dictaphone/>
     </div>
   );
 }

@@ -208,23 +208,29 @@ const ArticleListPage = () => {
             className="bg-white rounded-lg shadow-md overflow-hidden transition-all hover:shadow-lg"
           >
             <div className="p-6">
-              <h2 className="text-3xl font-semibold text-gray-800 mb-2">{article.title}</h2>
+              <h2 className="text-3xl font-semibold text-gray-800 mb-2">
+                {article.title}
+              </h2>
               <p className="text-lg text-gray-600 mb-4">{article.content}</p>
               <Link
-                to={article.url || `/articles/${category}/${subcategory}/${article.id}`}
+                to={
+                  article.url ||
+                  `/articles/${category}/${subcategory}/${article.id}`
+                }
                 className="inline-block bg-black font-semibold text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors"
               >
                 Read Full Article
               </Link>
             </div>
+            <Dictaphone/>
           </div>
         )) || (
           <div className="col-span-full text-center text-gray-600">
             No articles available for this subcategory.
           </div>
         )}
+        <Dictaphone/>
       </div>
-      <Dictaphone/>
     </div>
   );
 };

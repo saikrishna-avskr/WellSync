@@ -46,10 +46,12 @@ const Dictaphone = () => {
     } else if (transcriptLower.includes("detection")) {
       navigate("/face-detection");
       speakText("Going to Face Detection page");
-    }
-    else if (transcriptLower.includes("game")) {
+    } else if (transcriptLower.includes("game")) {
       navigate("/games");
       speakText("Going to Games page");
+    } else if (transcriptLower.includes("articles")) {
+      navigate("/articles");
+      speakText("Going to Articles page");
     }
   };
 
