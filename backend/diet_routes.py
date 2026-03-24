@@ -466,6 +466,134 @@ FORMATTING RULES (IMPORTANT):
         return jsonify({"error": str(e)}), 500
 
 
+def parse_recipes_from_ai(raw_text):
+    """Parse structured recipes from AI response (JSON or text)."""
+    import json as _json
+
+    # Try to extract JSON array from the response
+    # The AI may wrap it in ```json ... ``` or return raw JSON
+    cleaned = raw_text.strip()
+
+    # Remove markdown code fences
+    if '```' in cleaned:
+        match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', cleaned, re.DOTALL)
+        if match:
+            cleaned = match.group(1)
+
+    # Try parsing as JSON array
+    try:
+        recipes = _json.loads(cleaned)
+        if isinstance(recipes, list):
+            parsed = []
+            for r in recipes:
+                parsed.append({
+                    "name": str(r.get("name", "Untitled Recipe")),
+                    "calories": int(r.get("calories", 0)),
+                    "cookingTime": int(r.get("cookingTime", 30)),
+                    "servings": int(r.get("servings", 4)),
+                    "difficulty": str(r.get("difficulty", "Medium")),
+                    "mealType": str(r.get("mealType", "Any")),
+                    "tags": list(r.get("tags", [])),
+                    "ingredients": list(r.get("ingredients", [])),
+                    "instructions": list(r.get("instructions", [])),
+                    "nutritionBenefits": str(r.get("nutritionBenefits", "")),
+                    "protein": int(r.get("protein", 0)),
+                    "carbs": int(r.get("carbs", 0)),
+                    "fats": int(r.get("fats", 0)),
+                    "fiber": int(r.get("fiber", 0)),
+                })
+            return parsed
+    except (_json.JSONDecodeError, ValueError, TypeError):
+        pass
+
+    # Fallback: parse markdown-style recipes
+    recipes = []
+    current = None
+    section = None  # 'ingredients', 'instructions', 'benefits'
+
+    for line in raw_text.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Detect recipe header
+        header_match = re.match(r'^#{1,3}\s*(?:Recipe\s*\d+[:\-]?\s*)?(.+)', stripped)
+        if header_match and not any(kw in stripped.lower() for kw in ['ingredients', 'instructions', 'nutritional', 'benefits', 'important', 'requirements']):
+            if current:
+                recipes.append(current)
+            current = {
+                "name": header_match.group(1).strip().strip('*').strip(),
+                "calories": 0, "cookingTime": 30, "servings": 4,
+                "difficulty": "Medium", "mealType": "Any",
+                "tags": [], "ingredients": [], "instructions": [],
+                "nutritionBenefits": "", "protein": 0, "carbs": 0, "fats": 0, "fiber": 0,
+            }
+            section = None
+            continue
+
+        if current is None:
+            continue
+
+        low = stripped.lower()
+
+        # Parse metadata lines
+        cal_match = re.search(r'(\d+)\s*kcal', stripped)
+        if cal_match and 'protein' not in low:
+            current["calories"] = int(cal_match.group(1))
+
+        time_match = re.search(r'cooking\s*time[:\s]*(\d+)', stripped, re.IGNORECASE)
+        if time_match:
+            current["cookingTime"] = int(time_match.group(1))
+
+        serv_match = re.search(r'servings?[:\s]*(\d+)', stripped, re.IGNORECASE)
+        if serv_match:
+            current["servings"] = int(serv_match.group(1))
+
+        if re.search(r'tags?[:\s]', stripped, re.IGNORECASE):
+            tags = re.findall(r'[A-Z][a-z]+(?:\s[A-Z][a-z]+)*', stripped.split(':', 1)[-1] if ':' in stripped else stripped)
+            current["tags"] = [t.strip() for t in tags if t.strip()]
+
+        # Detect section headers
+        if 'ingredient' in low:
+            section = 'ingredients'
+            continue
+        elif 'instruction' in low or 'direction' in low or 'method' in low or 'steps' in low:
+            section = 'instructions'
+            continue
+        elif 'benefit' in low or 'nutrition' in low:
+            section = 'benefits'
+            continue
+
+        # Parse list items into sections
+        item_match = re.match(r'^[-*•]\s+(.+)', stripped)
+        num_match = re.match(r'^(\d+)[.)]\s+(.+)', stripped)
+
+        if section == 'ingredients' and (item_match or num_match):
+            text = (item_match or num_match).group(item_match and 1 or 2)
+            current["ingredients"].append(text.strip('*').strip())
+        elif section == 'instructions' and (item_match or num_match):
+            text = (num_match.group(2) if num_match else item_match.group(1))
+            current["instructions"].append(text.strip('*').strip())
+        elif section == 'benefits' and (item_match or num_match):
+            text = (item_match or num_match).group(item_match and 1 or 2)
+            current["nutritionBenefits"] += text.strip('*').strip() + ". "
+
+    if current:
+        recipes.append(current)
+
+    # Assign difficulty based on cooking time
+    for r in recipes:
+        t = r["cookingTime"]
+        if t <= 15:
+            r["difficulty"] = "Easy"
+        elif t <= 30:
+            r["difficulty"] = "Medium"
+        else:
+            r["difficulty"] = "Hard"
+
+    return recipes
+
+
 @diet_bp.route('/generate-recipes', methods=['POST'])
 def generate_recipes():
     """Generate recipe suggestions based on ingredients."""
@@ -478,59 +606,71 @@ def generate_recipes():
         allergies = data.get('allergies', [])
         cooking_time = data.get('cooking_time', '30')
         cuisine_preference = data.get('cuisine_preference', 'any')
+        meal_type = data.get('meal_type', 'any')
+        difficulty = data.get('difficulty', 'any')
+        category = data.get('category', '')
         
         allergies_str = ', '.join(allergies) if allergies else 'None'
         
         # Get strict diet guidelines
         diet_guidelines = get_diet_guidelines(diet_type)
-        
-        prompt = f"""You are a professional chef and nutritionist. Suggest 4 delicious and healthy recipes.
 
-## CRITICAL DIET RESTRICTION - MUST FOLLOW:
+        # Build extra filters for the prompt
+        filter_lines = []
+        if meal_type and meal_type != 'any':
+            filter_lines.append(f'- Meal Type: {meal_type}')
+        if difficulty and difficulty != 'any':
+            filter_lines.append(f'- Difficulty: {difficulty}')
+        if category:
+            filter_lines.append(f'- Category focus: {category}')
+        filter_section = '\n'.join(filter_lines) if filter_lines else ''
+
+        prompt = f"""You are a professional chef and nutritionist. Generate exactly 6 delicious and healthy recipes.
+
+CRITICAL DIET RESTRICTION:
 {diet_guidelines}
 
-## Available Ingredients:
-{ingredients}
+Available Ingredients (use these as primary ingredients, you may add common pantry items):
+{ingredients if ingredients else 'Any common ingredients'}
 
-## Requirements:
-- **Diet Type:** {diet_type.upper()} (STRICTLY follow this - every recipe MUST comply!)
-- **Must Avoid (Allergies):** {allergies_str}
-- **Max Cooking Time:** {cooking_time} minutes
-- **Cuisine Preference:** {cuisine_preference}
+Requirements:
+- Diet Type: {diet_type.upper()} (STRICTLY follow this!)
+- Must Avoid (Allergies): {allergies_str}
+- Max Cooking Time per recipe: {cooking_time} minutes
+- Cuisine Preference: {cuisine_preference}
+{filter_section}
 
-## IMPORTANT RULES:
-1. EVERY recipe MUST strictly follow the {diet_type} diet requirements
-2. NEVER include any forbidden ingredients for {diet_type} diet
-3. Double-check each ingredient is allowed
+IMPORTANT: Return ONLY a valid JSON array. No markdown, no code fences, no extra text.
+Each element must have exactly these fields:
+[
+  {{
+    "name": "Recipe Name",
+    "calories": 450,
+    "cookingTime": 25,
+    "servings": 4,
+    "difficulty": "Easy",
+    "mealType": "Dinner",
+    "tags": ["High Protein", "Low Carb"],
+    "ingredients": ["200g chicken breast", "1 cup quinoa"],
+    "instructions": ["Preheat oven to 200C.", "Season chicken and bake 20 min."],
+    "nutritionBenefits": "High in protein and fiber, supports muscle recovery.",
+    "protein": 35,
+    "carbs": 20,
+    "fats": 15,
+    "fiber": 5
+  }}
+]
 
-## Please provide 4 recipes in this format:
+Generate 6 diverse recipes with different cooking methods and flavor profiles.
+Every recipe MUST comply with {diet_type} diet. Double-check all ingredients."""
 
-### Recipe 1: [Recipe Name]
-- **Calories:** XXX kcal per serving
-- **Cooking Time:** XX minutes
-- **Servings:** X
-- **Tags:** [e.g., High Protein, Low Carb, Quick, etc.]
-
-**Ingredients:**
-- List all ingredients with quantities
-
-**Instructions:**
-1. Step-by-step cooking instructions
-2. Keep it concise but clear
-
-**Nutritional Benefits:**
-- Brief explanation of health benefits
-
----
-
-(Repeat for recipes 2, 3, and 4)
-
-Make recipes diverse - include different cooking methods and flavor profiles."""
-
-        # Generate with Gemini
+        # Generate with AI
         recipe_content = generate_with_gemini(prompt)
         
-        # Save to database if user is authenticated
+        # Parse into structured recipes
+        structured_recipes = parse_recipes_from_ai(recipe_content)
+        
+        # Save raw content to database if user is authenticated
         plan_id = None
         if user_email and user_email != 'anonymous':
             plan_id = save_meal_plan(
@@ -546,12 +686,160 @@ Make recipes diverse - include different cooking methods and flavor profiles."""
         
         return jsonify({
             "success": True,
-            "recipes": recipe_content,
+            "recipes": structured_recipes,
+            "raw_content": recipe_content,
             "plan_id": plan_id
         })
         
     except Exception as e:
         print(f"Error generating recipes: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ==================== Meal Suggestions ====================
+
+@diet_bp.route('/meal-suggestions', methods=['POST'])
+def get_meal_suggestions():
+    """Generate AI-powered meal suggestions for a specific meal time."""
+    try:
+        data = request.get_json()
+        meal_time = data.get('meal_time', 'breakfast')
+        diet_type = data.get('diet_type', 'balanced')
+        allergies = data.get('allergies', [])
+        calorie_goal = data.get('calorie_goal', 2000)
+
+        allergies_str = ', '.join(allergies) if allergies else 'None'
+        diet_guidelines = get_diet_guidelines(diet_type)
+
+        # Approximate per-meal calorie target
+        calorie_map = {
+            'breakfast': int(calorie_goal * 0.25),
+            'lunch': int(calorie_goal * 0.30),
+            'snack': int(calorie_goal * 0.15),
+            'dinner': int(calorie_goal * 0.30),
+        }
+        target_cals = calorie_map.get(meal_time, int(calorie_goal * 0.25))
+
+        prompt = f"""You are a nutritionist. Generate exactly 4 {meal_time} meal suggestions.
+
+DIET: {diet_type.upper()}
+{diet_guidelines}
+Allergies to avoid: {allergies_str}
+Target calories per meal: ~{target_cals} kcal
+
+Return ONLY a valid JSON array, no markdown, no code fences, no extra text.
+Each element must have exactly these fields:
+[
+  {{
+    "name": "Meal Name",
+    "cal": 320,
+    "protein": 12,
+    "carbs": 55,
+    "fats": 6,
+    "fiber": 8
+  }}
+]
+
+Generate 4 diverse, realistic {meal_time} options that strictly follow the {diet_type} diet."""
+
+        raw = generate_with_ai(prompt)
+
+        # Parse JSON
+        import json as _json
+        cleaned = raw.strip()
+        if '```' in cleaned:
+            match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', cleaned, re.DOTALL)
+            if match:
+                cleaned = match.group(1)
+        try:
+            suggestions = _json.loads(cleaned)
+        except (_json.JSONDecodeError, ValueError):
+            suggestions = []
+
+        # Validate shape
+        validated = []
+        for s in suggestions:
+            if isinstance(s, dict) and 'name' in s:
+                validated.append({
+                    "name": str(s.get("name", "Meal")),
+                    "cal": int(s.get("cal", 0)),
+                    "protein": int(s.get("protein", 0)),
+                    "carbs": int(s.get("carbs", 0)),
+                    "fats": int(s.get("fats", 0)),
+                    "fiber": int(s.get("fiber", 0)),
+                })
+
+        return jsonify({"success": True, "suggestions": validated})
+
+    except Exception as e:
+        print(f"Error generating meal suggestions: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@diet_bp.route('/quick-meals', methods=['POST'])
+def get_quick_meals():
+    """Generate AI-powered quick-add meal options."""
+    try:
+        data = request.get_json()
+        diet_type = data.get('diet_type', 'balanced')
+        allergies = data.get('allergies', [])
+        query = data.get('query', '')
+
+        allergies_str = ', '.join(allergies) if allergies else 'None'
+        diet_guidelines = get_diet_guidelines(diet_type)
+
+        search_line = f'The user searched for: "{query}"\nSuggest meals matching this search.' if query else 'Suggest 4 common quick meals/snacks.'
+
+        prompt = f"""You are a nutritionist. Generate quick meal options with nutrition data.
+
+DIET: {diet_type.upper()}
+{diet_guidelines}
+Allergies to avoid: {allergies_str}
+{search_line}
+
+Return ONLY a valid JSON array, no markdown, no code fences, no extra text.
+[
+  {{
+    "name": "Meal Name",
+    "cal": 200,
+    "protein": 8,
+    "carbs": 30,
+    "fats": 5,
+    "fiber": 3
+  }}
+]
+
+Generate exactly 4 quick meal options that strictly follow the {diet_type} diet."""
+
+        raw = generate_with_ai(prompt)
+
+        import json as _json
+        cleaned = raw.strip()
+        if '```' in cleaned:
+            match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', cleaned, re.DOTALL)
+            if match:
+                cleaned = match.group(1)
+        try:
+            meals = _json.loads(cleaned)
+        except (_json.JSONDecodeError, ValueError):
+            meals = []
+
+        validated = []
+        for m in meals:
+            if isinstance(m, dict) and 'name' in m:
+                validated.append({
+                    "name": str(m.get("name", "Meal")),
+                    "cal": int(m.get("cal", 0)),
+                    "protein": int(m.get("protein", 0)),
+                    "carbs": int(m.get("carbs", 0)),
+                    "fats": int(m.get("fats", 0)),
+                    "fiber": int(m.get("fiber", 0)),
+                })
+
+        return jsonify({"success": True, "meals": validated})
+
+    except Exception as e:
+        print(f"Error generating quick meals: {e}")
         return jsonify({"error": str(e)}), 500
 
 

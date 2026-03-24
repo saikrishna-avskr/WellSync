@@ -164,6 +164,22 @@ def init_database():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS yoga_pose_stats (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_email VARCHAR(255) NOT NULL,
+            pose_name VARCHAR(100) NOT NULL,
+            latest_pose_time_seconds DECIMAL(10,2) DEFAULT 0,
+            best_hold_seconds DECIMAL(10,2) DEFAULT 0,
+            sessions_count INT DEFAULT 0,
+            total_hold_seconds DECIMAL(10,2) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_yoga_pose_stats_user_pose (user_email, pose_name),
+            INDEX idx_yoga_pose_stats_user_email (user_email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ''')
+
     conn.commit()
     conn.close()
     print(f"MySQL database initialized: {_get_db_config()['database']}")
@@ -487,6 +503,86 @@ def get_tracking_history(user_email, days=30):
         history.append(item)
     
     return history
+
+
+# ==================== Yoga Pose Stats ====================
+
+def get_yoga_pose_stats(user_email):
+    """Get all yoga pose stats for a user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT user_email, pose_name, latest_pose_time_seconds, best_hold_seconds,
+               sessions_count, total_hold_seconds, created_at, updated_at
+        FROM yoga_pose_stats
+        WHERE user_email = %s
+    ''', (user_email,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    stats = []
+    for row in rows:
+        item = dict(row)
+        item['latest_pose_time_seconds'] = float(item.get('latest_pose_time_seconds') or 0)
+        item['best_hold_seconds'] = float(item.get('best_hold_seconds') or 0)
+        item['total_hold_seconds'] = float(item.get('total_hold_seconds') or 0)
+        stats.append(item)
+
+    return stats
+
+
+def get_yoga_pose_stat(user_email, pose_name):
+    """Get yoga stats for a specific pose and user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT user_email, pose_name, latest_pose_time_seconds, best_hold_seconds,
+               sessions_count, total_hold_seconds, created_at, updated_at
+        FROM yoga_pose_stats
+        WHERE user_email = %s AND pose_name = %s
+        LIMIT 1
+    ''', (user_email, pose_name))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    result = dict(row)
+    result['latest_pose_time_seconds'] = float(result.get('latest_pose_time_seconds') or 0)
+    result['best_hold_seconds'] = float(result.get('best_hold_seconds') or 0)
+    result['total_hold_seconds'] = float(result.get('total_hold_seconds') or 0)
+    return result
+
+
+def upsert_yoga_pose_stat(user_email, pose_name, pose_time_seconds, best_hold_seconds=None):
+    """Upsert yoga pose stats for a user and pose."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    safe_pose_time = max(float(pose_time_seconds or 0), 0.0)
+    safe_best = max(float(best_hold_seconds if best_hold_seconds is not None else safe_pose_time), 0.0)
+
+    cursor.execute('''
+        INSERT INTO yoga_pose_stats
+            (user_email, pose_name, latest_pose_time_seconds, best_hold_seconds, sessions_count, total_hold_seconds)
+        VALUES (%s, %s, %s, %s, 1, %s)
+        ON DUPLICATE KEY UPDATE
+            latest_pose_time_seconds = VALUES(latest_pose_time_seconds),
+            best_hold_seconds = GREATEST(best_hold_seconds, VALUES(best_hold_seconds)),
+            sessions_count = sessions_count + 1,
+            total_hold_seconds = total_hold_seconds + VALUES(latest_pose_time_seconds),
+            updated_at = CURRENT_TIMESTAMP
+    ''', (user_email, pose_name, safe_pose_time, safe_best, safe_pose_time))
+
+    conn.commit()
+    conn.close()
+
+    return get_yoga_pose_stat(user_email, pose_name)
 
 
 # Initialize database on module import
