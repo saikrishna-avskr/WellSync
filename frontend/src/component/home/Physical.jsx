@@ -76,7 +76,7 @@ const Physical = () => (
         <BentoTilt className="bento-tilt_1 row-span-1 md:col-span-1 md:row-span-2">
           <a href="/dietary-recommendations">
             <video
-              src="videos/diet.mp4"
+              src="videos/Diet.mp4"
               loop
               muted
               autoPlay
@@ -97,7 +97,7 @@ const Physical = () => (
         <BentoTilt className="bento-tilt_1 row-span-1 ms-32 md:col-span-1 md:row-span-2 md:ms-0">
           <a href="/fitness-dashboard">
             <video
-              src="videos/physical-3.mp4"
+              src="videos/fitness.mp4"
               loop
               muted
               autoPlay
