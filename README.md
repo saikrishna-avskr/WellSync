@@ -1,6 +1,6 @@
-WellSync
+SereniFit
 
-WellSync is an AI-powered wellness companion application that combines computer vision, large language models, and immersive VR tools to enhance user well-being. It detects facial moods, provides mood-based movie recommendations, corrects yoga poses with high accuracy, generates personalized diet plans, and integrates a conversational AI for mental wellness support.
+SereniFit is an AI-powered wellness companion application that combines computer vision, large language models, and immersive VR tools to enhance user well-being. It detects facial moods, provides mood-based movie recommendations, corrects yoga poses with high accuracy, generates personalized diet plans, and integrates a conversational AI for mental wellness support.
 
 ✨ Features
 
@@ -57,10 +57,10 @@ VR device (optional, for therapy modules)
 
 Installation
 # Clone the repository
-git clone https://github.com/your-username/wellsync.git
+git clone https://github.com/your-username/SereniFit.git
 
 # Navigate into the project
-cd wellsync
+cd SereniFit
 
 # Install frontend dependencies
 cd frontend
